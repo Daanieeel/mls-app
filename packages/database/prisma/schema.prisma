@@ -1,0 +1,147 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String  @id @default(cuid())
+  email         String  @unique
+  name          String?
+  password_hash String
+
+  createdGroups  Group[]         @relation("UserCreatedGroups")
+  joinedGroups   GroupMember[]
+  devices        Device[]
+  globalMessages GlobalMessage[]
+  keyPackages    KeyPackage[]
+  userInboxItems UserInboxItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdAt])
+}
+
+model UserInboxItem {
+  id     String @id @default(cuid())
+  seq_id BigInt
+
+  payload Bytes
+  type    String
+  nonce   String @unique
+
+  receiver   User          @relation(fields: [receiverId], references: [id])
+  receiverId String
+  message    GlobalMessage @relation(fields: [messageId], references: [id])
+  messageId  String
+
+  readAt      DateTime?
+  deliveredAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([receiverId, seq_id])
+  @@index([messageId])
+}
+
+model GlobalMessage {
+  id      String @id @default(cuid())
+  payload Bytes
+  type    String
+  nonce   String @unique
+
+  sender             User            @relation(fields: [senderId], references: [id])
+  senderId           String
+  receiverInboxItems UserInboxItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([senderId])
+  @@index([createdAt])
+}
+
+model GroupMember {
+  user    User   @relation(fields: [userId], references: [id])
+  userId  String
+  group   Group  @relation(fields: [groupId], references: [id])
+  groupId String
+
+  role        GroupRole? @relation(fields: [groupRoleId], references: [id])
+  groupRoleId String?
+
+  joinedAt DateTime @default(now())
+
+  @@id([userId, groupId])
+  @@index([groupId])
+}
+
+model Group {
+  id   String @id @default(cuid())
+  name String
+
+  createdBy   User          @relation("UserCreatedGroups", fields: [createdById], references: [id])
+  createdById String
+  members     GroupMember[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdById])
+}
+
+model GroupRole {
+  id   String        @id @default(cuid())
+  name String
+  type GroupRoleType
+
+  groupMembers GroupMember[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum GroupRoleType {
+  ADMIN
+  MEMBER
+}
+
+model Device {
+  id         String       @id @default(cuid())
+  deviceName String
+  publicKey  String       @unique
+  status     DeviceStatus @default(ACTIVE)
+
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
+
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId, status])
+}
+
+enum DeviceStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model KeyPackage {
+  id      String    @id @default(cuid())
+  usedAt  DateTime?
+  payload Bytes
+
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, usedAt])
+}

@@ -1,0 +1,16 @@
+{
+  "extends": "@repo/typescript-config/nextjs.json",
+  "compilerOptions": {
+    "types": [],
+    "verbatimModuleSyntax": true,
+    "checkJs": true,
+    "incremental": true,
+
+    /* Path Aliases */
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", "**/*.cjs", "**/*.js", ".next/types/**/*.ts"],
+  "exclude": ["node_modules", "generated"]
+}

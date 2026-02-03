@@ -1,0 +1,269 @@
+name: prod-mls
+
+services:
+  # Infrastructure Services
+  postgres:
+    image: postgres:16-alpine
+    container_name: prod-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DATABASE_USER}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      POSTGRES_DB: ${DATABASE_NAME}
+    ports:
+      - "${DATABASE_PORT}:5432"
+    volumes:
+      - prod_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - prod-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: prod-redis
+    restart: always
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    ports:
+      - "${REDIS_PORT}:6379"
+    volumes:
+      - prod_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - prod-network
+
+  minio:
+    image: minio/minio:latest
+    container_name: prod-minio
+    restart: always
+    command: server /data --console-address ":${MINIO_CONSOLE_PORT}"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "${MINIO_PORT}:9000"
+      - "${MINIO_CONSOLE_PORT}:9001"
+    volumes:
+      - prod_minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - prod-network
+
+  kafka:
+    image: apache/kafka:latest
+    container_name: prod-kafka
+    restart: always
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,PLAINTEXT_HOST://:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://prod-kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@prod-kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID}
+    ports:
+      - "${KAFKA_PORT}:9092"
+    volumes:
+      - prod_kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - prod-network
+
+  # Database Migration Service
+  migrate:
+    container_name: prod-migrate
+    build:
+      context: .
+      dockerfile: apps/rest/Dockerfile
+      target: builder
+    env_file:
+      - ./.env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    command: ["sh", "-c", "cd packages/database && bun run db:migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - prod-network
+    restart: "no"
+
+  # Application Services (Production)
+  rest:
+    container_name: prod-rest
+    build:
+      context: .
+      dockerfile: apps/rest/Dockerfile
+      target: runner
+      args:
+        PORT_REST: ${PORT_REST}
+    restart: always
+    ports:
+      - "${PORT_REST}:3001"
+    env_file:
+      - ./.env
+    environment:
+      NODE_ENV: production
+      PORT_REST: ${PORT_REST}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      KAFKA_BROKERS: ${KAFKA_BROKERS}
+      KAFKA_CLIENT_ID_REST: ${KAFKA_CLIENT_ID_REST}
+      KAFKA_GROUP_ID_REST: ${KAFKA_GROUP_ID_REST}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - prod-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  websocket:
+    container_name: prod-websocket
+    build:
+      context: .
+      dockerfile: apps/websocket/Dockerfile
+      target: runner
+      args:
+        PORT_WEBSOCKET: ${PORT_WEBSOCKET}
+    restart: always
+    ports:
+      - "${PORT_WEBSOCKET}:3002"
+    env_file:
+      - ./.env
+    environment:
+      NODE_ENV: production
+      PORT_WEBSOCKET: ${PORT_WEBSOCKET}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      KAFKA_BROKERS: ${KAFKA_BROKERS}
+      KAFKA_CLIENT_ID_WEBSOCKET: ${KAFKA_CLIENT_ID_WEBSOCKET}
+      KAFKA_GROUP_ID_WEBSOCKET: ${KAFKA_GROUP_ID_WEBSOCKET}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - prod-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  website:
+    container_name: prod-website
+    build:
+      context: .
+      dockerfile: apps/website/Dockerfile
+      target: runner
+      args:
+        PORT_WEBSITE: ${PORT_WEBSITE}
+    restart: always
+    ports:
+      - "${PORT_WEBSITE}:3000"
+    env_file:
+      - ./.env
+    environment:
+      NODE_ENV: production
+      PORT_WEBSITE: ${PORT_WEBSITE}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      DATABASE_URL: ${DATABASE_URL}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      rest:
+        condition: service_started
+    networks:
+      - prod-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  worker:
+    container_name: prod-worker
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+      target: runner
+      args:
+        PORT_WORKER: ${PORT_WORKER}
+    restart: always
+    ports:
+      - "${PORT_WORKER}:3003"
+    env_file:
+      - ./.env
+    environment:
+      NODE_ENV: production
+      PORT_WORKER: ${PORT_WORKER}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      KAFKA_BROKERS: ${KAFKA_BROKERS}
+      KAFKA_CLIENT_ID_WORKER: ${KAFKA_CLIENT_ID_WORKER}
+      KAFKA_GROUP_ID_WORKER: ${KAFKA_GROUP_ID_WORKER}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - prod-network
+
+networks:
+  prod-network:
+    driver: bridge
+
+volumes:
+  prod_postgres_data:
+    driver: local
+  prod_redis_data:
+    driver: local
+  prod_minio_data:
+    driver: local
+  prod_kafka_data:
+    driver: local

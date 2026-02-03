@@ -1,0 +1,23 @@
+{
+  "name": "@repo/database",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "prisma": "6.19.2"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "6.19.2",
+    "@prisma/client": "6.19.2"
+  }
+}

@@ -1,93 +1,107 @@
-# VSIT25-chat-app
 
+# MLS Messaging System — Architektur & Projektübersicht
 
+Dieses Repository implementiert ein sicheres, multi-device Messaging-System, das die Messaging Layer Security (MLS) für End-to-End-Verschlüsselung (E2EE) nutzt und das "Inbox Pattern" zur zuverlässigen Zustellung und Synchronisation über mehrere Geräte unterstützt.
 
-## Getting started
+## Ziel des Projekts
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+- Bereitstellung einer skalierbaren, sicheren Messaging-Plattform für Gruppen- und 1:1-Kommunikation.
+- Unterstützung mehrerer Geräte pro Benutzer mit konsistenter, lückenfreier Synchronisation.
+- Effiziente Gruppenverschlüsselung mittels MLS (statt vieler 1:1-Ratchets).
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+## High-Level Tech Stack
 
-## Add your files
+| Kategorie | Technologie |
+| :--- | :--- |
+| **Backend** | Elysia.js (TypeScript) API + Worker Nodes |
+| **Kommunikation** | REST (Upstream) + WebSockets (Downstream/Push) |
+| **Event Bus** | Kafka (Async Verarbeitung & Fan-out) |
+| **Storage** | PostgreSQL (Metadata/Inbox), Redis (Pub/Sub für Push), S3 (Media/Backups) |
+| **Security** | Argon2 (Passwort-Hashing), Ed25519 (Identität), AES-GCM (Payloads) |
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+## Kernkonzepte
+
+### Messaging Layer Security (MLS)
+
+MLS ermöglicht effiziente Gruppenverschlüsselung für große Gruppen (z. B. >1000 Mitglieder). Wichtige Begriffe:
+
+- **KeyPackages**: Pre-Keys, die Clients hochladen, damit andere sie bei Offline-Mitgliedern verwenden können.
+- **Epochs**: Jede Gruppenänderung (Add/Remove/Leave) erzeugt eine neue Epoch durch eine `Commit`-Nachricht.
+- **Epoch Konsistenz**: Clients können Nachrichten aus Epoch N+1 nicht entschlüsseln, bevor sie die `Commit`-Nachricht verarbeitet haben, die den Übergang zu Epoch N+1 ermöglicht. Lücken sind nicht zulässig.
+- **Welcome Messages**: Werden neuen Mitgliedern gesendet, um den aktuellen Gruppenstatus bereitzustellen.
+
+### "Inbox Pattern" (Fan-out)
+
+Zur Unterstützung mehrerer Geräte und zuverlässiger Sync verwenden wir ein zweistufiges Speicher-/Zeitleistenmodell:
+
+| Konzept | Beschreibung |
+| :--- | :--- |
+| **Global Messages** | Verschlüsselter Payload wird einmal abgelegt (Source of Truth). |
+| **User Inbox** | Leichte Pointer-Tabelle; jede Nachricht wird für jedes Empfängergerät in die Inbox gefanned. |
+| **Sequence IDs (`seq_id`)** | Monotoner Zähler pro Benutzer zur Erkennung von Lücken und Wiederherstellung. |
+
+## Logischer Ablauf
+
+### Versenden einer Nachricht
+
+1. **Client**: verschlüsselt Payload lokal und POSTet zu `/messages/send`.
+2. **API**: validiert und schreibt ein `MessageEvent` in Kafka.
+3. **Worker**: schreibt in `global_messages`, ermittelt Gruppenmitglieder und deren Geräte und fügt für jedes Zielgerät eine Zeile in `user_inbox` ein; veröffentlicht ein Redis-Event, um Pushs anzustoßen.
+4. **WebSocket Gateway**: empfängt das Redis-Event und pusht an aktive Verbindungen.
+
+### Synchronisation
+
+- **Live**: Nachrichten kommen per WebSocket.
+- **On Connect**: Client sendet letzten `seq_id`; Server liefert alle fehlenden Inbox-Items (Anwendungsnachrichten und Handshake/Commit-Nachrichten).
+- **Gap Recovery**: Erhält ein Client eine Nachricht für eine zukünftige Epoch (Orphan), puffert er die Nachricht lokal, fordere fehlende Commit-Nachrichten/Handshake-Historie an und entschlüsselt die Nachricht nach Aktualisierung des Crypto-Status.
+
+## Client-seitige Architektur (Device State)
+
+Um Offline-Lücken und Out-of-Order-Delivery ohne UI-Blockade zu handhaben, verwendet der Client eine "Fast-Forward"-Strategie mit zwei lokalen Stores:
+
+| Komponente | Zweck | Aufbewahrung |
+| :--- | :--- | :--- |
+| **Skipped Key Store** | Speichert abgeleitete Message-Keys während eines Ratchet-Fast-Forwards (z. B. Msg5 vor Msg4). | Löschung nach Nutzung; Auto-Delete: TBD |
+| **Orphan Buffer** | Puffert verschlüsselte Payloads, die zu einer zukünftigen Epoch gehören. | Aufbewahrung bis `history_fetch` fehlende Handshake/Commit-Messages liefert |
+
+## Datenbankschema (Highlights)
+
+| Tabelle | Zweck |
+| :--- | :--- |
+| `users` | Identity-Keys und globales `last_assigned_seq_id`. |
+| `devices` | Mehrere Geräte (phone, desktop) pro Benutzer. |
+| `key_packages` | Einmalige MLS Pre-Keys für Gruppen-Init. |
+| `global_messages` | Source of Truth für verschlüsselte Blobs. |
+| `user_inbox` | Delivery Queue; Typen: `APPLICATION` (Chat) und `HANDSHAKE` (Gruppen-Status). Muss strikt nach `seq_id` geordnet sein. |
+
+## Wichtige Infrastruktur-Komponenten
+
+| Komponente | Rolle |
+| :--- | :--- |
+| **Kafka Workers** | Entkoppeln HTTP-Request vom teuren Fan-out; berechnen Gruppenmitglieder, schreiben DB und erzeugen Inbox-Einträge. |
+| **Redis Pub/Sub** | Verbindung zwischen Backend-Worker und WebSocket-Gateway; weckt Gateway-Node mit Verbindungen des Benutzers auf. |
+| **S3 (Object Storage)** | Speicherung großer Binärdateien und verschlüsselter Backups; Messaging-Fluss überträgt nur S3-Keys/Metadaten. |
+
+## Entwicklung & Lokales Setup (Kurz)
+
+Dieses Monorepo enthält mehrere Apps (API, Web, WebSocket, Worker). Übliche Schritte zum Entwickeln:
+
+1. Abhängigkeiten installieren (z. B. für die REST-API):
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.prod.gitlab.aws.cloud.huk.de/AP8K0/vsit25-chat-app.git
-git branch -M main
-git push -uf origin main
+cd apps/rest
+bun install
+bun run dev
 ```
 
-## Integrate with your tools
+1. Die Website in `apps/website` läuft mit Next.js:
 
-- [ ] [Set up project integrations](https://gitlab.prod.gitlab.aws.cloud.huk.de/AP8K0/vsit25-chat-app/-/settings/integrations)
+```
+cd apps/website
+bun install
+bun run dev
+```
 
-## Collaborate with your team
+1. Dienste wie Kafka, Redis, Postgres und ein S3-Emulator können über `docker-compose.dev.yml` gestartet werden.
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
-
-## Test and Deploy
-
-Use the built-in continuous integration in GitLab.
-
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
-
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+Prüfe die `package.json`-Skripte in den jeweiligen App-Ordnern für projektspezifische Befehle.
