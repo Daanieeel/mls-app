@@ -91,7 +91,7 @@ services:
       - dev-network
 
   migrate:
-      container_name: prod-migrate
+      container_name: dev-migrate
       build:
         context: .
         dockerfile: apps/rest/Dockerfile
@@ -105,7 +105,7 @@ services:
         postgres:
           condition: service_healthy
       networks:
-        - prod-network
+        - dev-network
       restart: "no"
 
 networks:

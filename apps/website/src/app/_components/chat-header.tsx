@@ -2,7 +2,7 @@
 
 import { Avatar } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
-import type { Chat } from '@/lib/chat/types';
+import type { GroupWithMetadata } from '@/lib/types';
 
 function UsersIcon({ className }: { className?: string }) {
   return (
@@ -28,12 +28,12 @@ function UsersIcon({ className }: { className?: string }) {
 }
 
 interface ChatHeaderProps {
-  chat: Chat | null;
+  group: GroupWithMetadata | null;
   isConnected: boolean;
 }
 
-export function ChatHeader({ chat, isConnected }: ChatHeaderProps) {
-  if (!chat) {
+export function ChatHeader({ group, isConnected }: ChatHeaderProps) {
+  if (!group) {
     return (
       <div className="flex h-14 items-center px-4 md:px-6">
         <span className="text-muted-foreground text-sm">Select a chat to start messaging</span>
@@ -47,12 +47,12 @@ export function ChatHeader({ chat, isConnected }: ChatHeaderProps) {
         {/* Spacer for mobile burger menu */}
         <div className="w-8 md:hidden" />
 
-        <Avatar fallback={chat.name} size="sm" src={chat.avatarUrl} />
+        <Avatar fallback={group.name} size="sm" src={group.avatarUrl} />
 
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex items-center gap-2">
-            <span className="truncate font-semibold">{chat.name}</span>
-            {chat.isGroup && <UsersIcon className="size-4 shrink-0 text-muted-foreground" />}
+            <span className="truncate font-semibold">{group.name}</span>
+            <UsersIcon className="size-4 shrink-0 text-muted-foreground" />
           </div>
 
           {/* Connection status indicator */}

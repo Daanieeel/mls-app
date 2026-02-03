@@ -1,159 +1,130 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useState } from 'react';
-import { CURRENT_USER_ID, PLACEHOLDER_CHATS, PLACEHOLDER_MESSAGES } from './placeholder-data';
-import type { Chat, DeleteMessagePayload, Message, UpdateMessagePayload } from './types';
+import { useCallback, useMemo } from "react";
+import {
+	dexieDb,
+	type LocalMessage,
+	markGroupAsRead,
+	useGroupMessages,
+	useGroupsWithMetadata,
+} from "@/lib/db";
+import type { GroupWithMetadata } from "@/lib/types";
+import { useSession } from "@/server/better-auth/client";
+import type {
+	DeleteMessagePayload,
+	Message,
+	UpdateMessagePayload,
+} from "./types";
 
 interface UseChatDataOptions {
-  selectedChatId: string | null;
+	selectedChatId: string | null;
 }
 
 interface UseChatDataReturn {
-  chats: Chat[];
-  messages: Message[];
-  isLoadingChats: boolean;
-  isLoadingMessages: boolean;
-  sendMessage: (content: string) => void;
-  addMessage: (message: Message) => void;
-  updateMessage: (payload: UpdateMessagePayload) => void;
-  deleteMessage: (payload: DeleteMessagePayload) => void;
+	groups: GroupWithMetadata[];
+	messages: Message[];
+	isLoadingGroups: boolean;
+	isLoadingMessages: boolean;
+	isLoadingSession: boolean;
+	isAuthenticated: boolean;
+	sendMessage: (content: string) => void;
+	addMessage: (message: Message) => void;
+	updateMessage: (payload: UpdateMessagePayload) => void;
+	deleteMessage: (payload: DeleteMessagePayload) => void;
+	markAsRead: (groupId: string) => Promise<void>;
 }
 
-export function useChatData({ selectedChatId }: UseChatDataOptions): UseChatDataReturn {
-  const [chats, setChats] = useState<Chat[]>([]);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoadingChats, setIsLoadingChats] = useState(true);
-  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+export function useChatData({
+	selectedChatId,
+}: UseChatDataOptions): UseChatDataReturn {
+	const { data: session, isPending: isLoadingSession } = useSession();
 
-  // TODO: Replace with actual IndexedDB fetch
-  useEffect(() => {
-    const loadChats = async () => {
-      setIsLoadingChats(true);
-      try {
-        // TODO: Fetch from IndexedDB
+	const { groups: groupsWithMetadata, isLoading: isLoadingChats } =
+		useGroupsWithMetadata();
 
-        // TODO: Fetch missed chats from backend
+	const { messages: localMessages, isLoading: isLoadingMessages } =
+		useGroupMessages(selectedChatId);
 
-        // For now, use placeholder data
-        await new Promise((resolve) => setTimeout(resolve, 300)); // Simulate loading
-        setChats(PLACEHOLDER_CHATS);
-      } catch (error) {
-        console.error('Failed to load chats:', error);
-      } finally {
-        setIsLoadingChats(false);
-      }
-    };
+	const messages: Message[] = useMemo(
+		() =>
+			localMessages.map((msg) => ({
+				id: msg.id,
+				chatId: msg.groupId,
+				senderId: msg.senderId,
+				content: msg.content,
+				timestamp: msg.createdAt,
+				status: "sent" as const,
+				isOwn: msg.isOwn,
+			})),
+		[localMessages],
+	);
 
-    loadChats();
-  }, []);
+	const sendMessage = useCallback(
+		(content: string) => {
+			if (!selectedChatId) return;
 
-  // TODO: Replace with actual IndexedDB fetch for messages
-  useEffect(() => {
-    if (!selectedChatId) {
-      setMessages([]);
-      return;
-    }
+			// Don't allow sending until session is ready and we have a user id
+			if (isLoadingSession || !session?.user?.id) {
+				console.warn("Cannot send message: session is loading or missing");
+        // TODO: Show user feedback
+				return;
+			}
 
-    const loadMessages = async () => {
-      setIsLoadingMessages(true);
-      try {
-        // TODO: Fetch from IndexedDB
+			const newMessage: LocalMessage = {
+				id: `msg-${Date.now()}`,
+				groupId: selectedChatId,
+				senderId: session.user.id,
+				content,
+				createdAt: new Date(),
+				isOwn: true,
+			};
 
-        // TODO: Fetch missed messages from backend
+			dexieDb.localMessages.put(newMessage).catch(console.error);
 
-        // For now, use placeholder data
-        await new Promise((resolve) => setTimeout(resolve, 200)); // Simulate loading
-        setMessages(PLACEHOLDER_MESSAGES[selectedChatId] ?? []);
-      } catch (error) {
-        console.error('Failed to load messages:', error);
-      } finally {
-        setIsLoadingMessages(false);
-      }
-    };
+			// TODO: Send Message to REST Endpoint
+			// TODO: update message's id and timestamp based on server response
+		},
+		[selectedChatId, session?.user?.id, isLoadingSession],
+	);
 
-    loadMessages();
-  }, [selectedChatId]);
+	const addMessage = useCallback((message: Message) => {
+		const localMessage: LocalMessage = {
+			id: message.id,
+			groupId: message.chatId,
+			senderId: message.senderId,
+			content: message.content,
+			createdAt: message.timestamp,
+			isOwn: message.isOwn,
+		};
+		dexieDb.localMessages.put(localMessage).catch(console.error);
+	}, []);
 
-  const sendMessage = useCallback(
-    (content: string) => {
-      if (!selectedChatId) return;
+	const updateMessage = useCallback((payload: UpdateMessagePayload) => {
+		dexieDb.localMessages
+			.update(payload.messageId, { content: payload.content })
+			.catch(console.error);
+	}, []);
 
-      const newMessage: Message = {
-        id: `msg-${Date.now()}`,
-        chatId: selectedChatId,
-        senderId: CURRENT_USER_ID,
-        content,
-        timestamp: new Date(),
-        status: 'sending',
-        isOwn: true,
-      };
+	const deleteMessage = useCallback((payload: DeleteMessagePayload) => {
+		dexieDb.localMessages.delete(payload.messageId).catch(console.error);
+	}, []);
 
-      setMessages((prev) => [...prev, newMessage]);
+	// Mark a group as read
+	const markAsRead = useCallback(async (groupId: string) => {
+		await markGroupAsRead(groupId);
+	}, []);
 
-      // TODO: Send Message to REST Endpoint
-
-      // TODO: Save to IndexedDB
-
-      // Simulate message being sent
-      setTimeout(() => {
-        setMessages((prev) =>
-          prev.map((msg) => (msg.id === newMessage.id ? { ...msg, status: 'sent' as const } : msg)),
-        );
-      }, 500);
-    },
-    [selectedChatId],
-  );
-
-  const addMessage = useCallback((message: Message) => {
-    setMessages((prev) => {
-      // Avoid duplicates
-      if (prev.some((m) => m.id === message.id)) {
-        return prev;
-      }
-      return [...prev, message];
-    });
-
-    // Update chat's last message
-    setChats((prevChats) =>
-      prevChats.map((chat) =>
-        chat.id === message.chatId
-          ? {
-              ...chat,
-              lastMessage: message.content,
-              lastMessageTime: message.timestamp,
-              unreadCount: message.isOwn ? chat.unreadCount : chat.unreadCount + 1,
-            }
-          : chat,
-      ),
-    );
-
-    // TODO: Save to IndexedDB
-  }, []);
-
-  const updateMessage = useCallback((payload: UpdateMessagePayload) => {
-    setMessages((prev) =>
-      prev.map((msg) =>
-        msg.id === payload.messageId ? { ...msg, content: payload.content } : msg,
-      ),
-    );
-
-    // TODO: Update in IndexedDB
-  }, []);
-
-  const deleteMessage = useCallback((payload: DeleteMessagePayload) => {
-    setMessages((prev) => prev.filter((msg) => msg.id !== payload.messageId));
-
-    // TODO: Delete from IndexedDB
-  }, []);
-
-  return {
-    chats,
-    messages,
-    isLoadingChats,
-    isLoadingMessages,
-    sendMessage,
-    addMessage,
-    updateMessage,
-    deleteMessage,
-  };
+	return {
+		groups: groupsWithMetadata,
+		messages,
+		isLoadingGroups: isLoadingChats,
+		isLoadingSession,
+		isAuthenticated: !!session?.user,
+		isLoadingMessages,
+		sendMessage,
+		addMessage,
+		updateMessage,
+		deleteMessage,
+		markAsRead,
+	};
 }

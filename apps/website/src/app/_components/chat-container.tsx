@@ -14,14 +14,15 @@ export function ChatContainer() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const {
-    chats,
+    groups,
     messages,
-    isLoadingChats,
+    isLoadingGroups,
     isLoadingMessages,
     sendMessage,
     addMessage,
     updateMessage,
     deleteMessage,
+    markAsRead,
   } = useChatData({ selectedChatId });
 
   // Handle incoming WebSocket messages
@@ -67,19 +68,21 @@ export function ChatContainer() {
 
   const handleSelectChat = useCallback((chatId: string) => {
     setSelectedChatId(chatId);
-  }, []);
+    // Mark the chat as read when selected
+    markAsRead(chatId);
+  }, [markAsRead]);
 
   const handleToggleSidebar = useCallback(() => {
     setIsSidebarOpen((prev) => !prev);
   }, []);
 
-  const selectedChat = chats.find((chat) => chat.id === selectedChatId) ?? null;
+  const selectedChat = groups.find((chat) => chat.id === selectedChatId) ?? null;
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">
       {/* Sidebar */}
       <ChatSidebar
-        chats={chats}
+        groups={groups}
         isOpen={isSidebarOpen}
         onSelectChat={handleSelectChat}
         onToggle={handleToggleSidebar}
@@ -89,7 +92,7 @@ export function ChatContainer() {
       {/* Main chat area */}
       <main className="flex min-w-0 flex-1 flex-col">
         {/* Chat header */}
-        <ChatHeader chat={selectedChat} isConnected={isConnected} />
+        <ChatHeader group={selectedChat} isConnected={isConnected} />
 
         {/* Messages */}
         {selectedChatId ? (
@@ -105,7 +108,7 @@ export function ChatContainer() {
           <div className="flex flex-1 items-center justify-center">
             <div className="text-center">
               <p className="text-muted-foreground text-sm">
-                {isLoadingChats
+                {isLoadingGroups
                   ? 'Loading chats...'
                   : 'Select a chat from the sidebar to start messaging'}
               </p>
