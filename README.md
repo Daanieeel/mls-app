@@ -44,8 +44,8 @@ Zur Unterstützung mehrerer Geräte und zuverlässiger Sync verwenden wir ein zw
 
 ### Versenden einer Nachricht
 
-1. **Client**: verschlüsselt Payload lokal und POSTet zu `/messages/send`.
-2. **API**: validiert und schreibt ein `MessageEvent` in Kafka.
+1. **Client**: verschlüsselt Payload lokal und POSTet zu `/messages/`.
+2. **API**: validiert und schreibt ein `messages.send` in Kafka.
 3. **Worker**: schreibt in `global_messages`, ermittelt Gruppenmitglieder und deren Geräte und fügt für jedes Zielgerät eine Zeile in `user_inbox` ein; veröffentlicht ein Redis-Event, um Pushs anzustoßen.
 4. **WebSocket Gateway**: empfängt das Redis-Event und pusht an aktive Verbindungen.
 
@@ -54,15 +54,6 @@ Zur Unterstützung mehrerer Geräte und zuverlässiger Sync verwenden wir ein zw
 - **Live**: Nachrichten kommen per WebSocket.
 - **On Connect**: Client sendet letzten `seq_id`; Server liefert alle fehlenden Inbox-Items (Anwendungsnachrichten und Handshake/Commit-Nachrichten).
 - **Gap Recovery**: Erhält ein Client eine Nachricht für eine zukünftige Epoch (Orphan), puffert er die Nachricht lokal, fordere fehlende Commit-Nachrichten/Handshake-Historie an und entschlüsselt die Nachricht nach Aktualisierung des Crypto-Status.
-
-## Client-seitige Architektur (Device State)
-
-Um Offline-Lücken und Out-of-Order-Delivery ohne UI-Blockade zu handhaben, verwendet der Client eine "Fast-Forward"-Strategie mit zwei lokalen Stores:
-
-| Komponente | Zweck | Aufbewahrung |
-| :--- | :--- | :--- |
-| **Skipped Key Store** | Speichert abgeleitete Message-Keys während eines Ratchet-Fast-Forwards (z. B. Msg5 vor Msg4). | Löschung nach Nutzung; Auto-Delete: TBD |
-| **Orphan Buffer** | Puffert verschlüsselte Payloads, die zu einer zukünftigen Epoch gehören. | Aufbewahrung bis `history_fetch` fehlende Handshake/Commit-Messages liefert |
 
 ## Datenbankschema (Highlights)
 
@@ -86,22 +77,15 @@ Um Offline-Lücken und Out-of-Order-Delivery ohne UI-Blockade zu handhaben, verw
 
 Dieses Monorepo enthält mehrere Apps (API, Web, WebSocket, Worker). Übliche Schritte zum Entwickeln:
 
-1. Abhängigkeiten installieren (z. B. für die REST-API):
+1. Alle Apps im Dev Modus starten:
 
 ```
-cd apps/rest
 bun install
 bun run dev
 ```
 
-1. Die Website in `apps/website` läuft mit Next.js:
+2. Production nach Docker Desktop deployen:
 
 ```
-cd apps/website
-bun install
-bun run dev
+bun run docker:prod:deploys
 ```
-
-1. Dienste wie Kafka, Redis, Postgres und ein S3-Emulator können über `docker-compose.dev.yml` gestartet werden.
-
-Prüfe die `package.json`-Skripte in den jeweiligen App-Ordnern für projektspezifische Befehle.
