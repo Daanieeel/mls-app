@@ -87,5 +87,5 @@ bun run dev
 2. Production nach Docker Desktop deployen:
 
 ```
-bun run docker:prod:deploys
+bun run docker:prod:deploy
 ```
