@@ -1,54 +1,12 @@
 "use client";
 
+import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import type { GroupWithMetadata } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ChatListItem } from "./chat-list-item";
-
-function MenuIcon({ className }: { className?: string }) {
-	return (
-		<svg
-			aria-hidden="true"
-			className={className}
-			fill="none"
-			height="24"
-			stroke="currentColor"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-			strokeWidth="2"
-			viewBox="0 0 24 24"
-			width="24"
-			xmlns="http://www.w3.org/2000/svg"
-		>
-			<line x1="4" x2="20" y1="12" y2="12" />
-			<line x1="4" x2="20" y1="6" y2="6" />
-			<line x1="4" x2="20" y1="18" y2="18" />
-		</svg>
-	);
-}
-
-function XIcon({ className }: { className?: string }) {
-	return (
-		<svg
-			aria-hidden="true"
-			className={className}
-			fill="none"
-			height="24"
-			stroke="currentColor"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-			strokeWidth="2"
-			viewBox="0 0 24 24"
-			width="24"
-			xmlns="http://www.w3.org/2000/svg"
-		>
-			<path d="M18 6 6 18" />
-			<path d="m6 6 12 12" />
-		</svg>
-	);
-}
 
 interface ChatSidebarProps {
 	groups: GroupWithMetadata[];
@@ -96,7 +54,7 @@ export function ChatSidebar({
 						size="icon-sm"
 						variant="ghost"
 					>
-						<XIcon className="size-4" />
+						<X className="size-4" />
 					</Button>
 				</div>
 
@@ -131,7 +89,7 @@ export function ChatSidebar({
 				size="icon"
 				variant="ghost"
 			>
-				<MenuIcon className="size-5" />
+				<Menu className="size-5" />
 			</Button>
 		</>
 	);
