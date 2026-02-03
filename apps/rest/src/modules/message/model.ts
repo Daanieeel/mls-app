@@ -6,4 +6,15 @@ export namespace MessageModel {
     payload: t.String(),
     type: t.String(),
   });
+  export const UpdateMessageBody = t.Object({
+    nonce: t.String(),
+    payload: t.String(),
+    type: t.String(),
+  });
+  export const DeleteMessageParams = t.Object({
+    id: t.String(),
+  });
+  export const UpdateMessageParams = t.Object({
+    messageId: t.String(),
+  });
 }
