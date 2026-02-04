@@ -5,6 +5,7 @@ export namespace MessageModel {
     nonce: t.String(),
     payload: t.String(),
     type: t.String(),
+    groupId: t.String(),
   });
   export const UpdateMessageBody = t.Object({
     nonce: t.String(),

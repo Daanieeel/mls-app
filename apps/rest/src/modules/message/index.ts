@@ -3,16 +3,26 @@ import { kafkaPlugin } from '../../utils/kafka';
 import { requireAuth } from '../auth/guard';
 import { MessageModel } from './model';
 import { MessageService } from './service';
+import { TOPIC_TYPES } from '../../utils/events';
 
 export const messageRouter = new Elysia({ prefix: '/messages' })
   .use(kafkaPlugin())
   .use(requireAuth)
   .post(
     '/',
-    ({ body, user, set }) => {
+    ({ body, user, set, producer }) => {
+      const createdCloudEvent = MessageService.createMessage({ body, userId: user.id });
+      producer.send({
+        topic: TOPIC_TYPES.MESSAGE,
+        messages: [
+          {
+            key: body.groupId,
+            value: JSON.stringify(createdCloudEvent),
+          },
+        ],
+      });
       set.status = 202;
-      const createdMessage = MessageService.createMessage({ body, userId: user.id });
-      return createdMessage;
+      return createdCloudEvent;
     },
     { body: MessageModel.CreateMessageBody },
   )
