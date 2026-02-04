@@ -83,14 +83,22 @@ export const groupRouter = new Elysia({ prefix: '/groups' })
     set.status = 200;
     return groups;
   })
-  .get('/:id', ({ user, params }) => {
-    return GroupService.getGroupById({
+  .get('/:id', ({ user, params, set }) => {
+    const group = GroupService.getGroupById({
       executorId: user.id,
       groupId: params.id,
     });
+    if (group === undefined) {
+      set.status = 404;
+    } else {
+      set.status = 200;
+    }
+    return group;
   })
-  .get('/sync', ({ user }) => {
-    return GroupService.syncGroups({
+  .get('/sync', ({ user, set }) => {
+    const groups = GroupService.syncGroups({
       executorId: user.id,
     });
+    set.status = 200;
+    return groups;
   });

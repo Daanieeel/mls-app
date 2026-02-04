@@ -5,7 +5,7 @@ export abstract class GroupService {
   static createGroup({
     body,
     executorId,
-  }: { body: typeof GroupModel.CreateGroupBody['static']; executorId: string }) {
+  }: { body: (typeof GroupModel.CreateGroupBody)['static']; executorId: string }) {
     return prisma.group.create({
       data: {
         ...body,
@@ -22,8 +22,8 @@ export abstract class GroupService {
     body,
     params,
   }: {
-    body: typeof GroupModel.AddUserBody['static'];
-    params: typeof GroupModel.AddUserParams['static'];
+    body: (typeof GroupModel.AddUserBody)['static'];
+    params: (typeof GroupModel.AddUserParams)['static'];
   }) {
     return prisma.group.update({
       where: {
@@ -47,8 +47,8 @@ export abstract class GroupService {
     body,
     params,
   }: {
-    body: typeof GroupModel.RemoveUserBody['static'];
-    params: typeof GroupModel.RemoveUserParams['static'];
+    body: (typeof GroupModel.RemoveUserBody)['static'];
+    params: (typeof GroupModel.RemoveUserParams)['static'];
   }) {
     return prisma.group.update({
       where: {
@@ -71,7 +71,7 @@ export abstract class GroupService {
   static leaveGroup({
     executorId,
     params,
-  }: { executorId: string; params: typeof GroupModel.LeaveGroupParams['static'] }) {
+  }: { executorId: string; params: (typeof GroupModel.LeaveGroupParams)['static'] }) {
     return prisma.group.update({
       where: {
         id: params.groupId,
@@ -101,7 +101,28 @@ export abstract class GroupService {
     });
   }
 
-  static getGroupById({ executorId, groupId }: { executorId: string; groupId: string }) {}
+  static getGroupById({ executorId, groupId }: { executorId: string; groupId: string }) {
+    return prisma.group.findFirst({
+      where: {
+        members: {
+          some: {
+            userId: executorId,
+            groupId: groupId,
+          },
+        },
+      },
+    });
+  }
 
-  static syncGroups({ executorId }: { executorId: string }) {}
+  static syncGroups({ executorId }: { executorId: string }) {
+    return prisma.group.findMany({
+      where: {
+        members: {
+          some: {
+            userId: executorId,
+          },
+        },
+      },
+    });
+  }
 }
