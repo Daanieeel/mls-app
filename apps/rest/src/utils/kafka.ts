@@ -1,10 +1,9 @@
-// kafka.ts
-import { Kafka } from 'kafkajs';
-import { Elysia } from 'elysia';
 import { env } from '@repo/env';
+import { Elysia } from 'elysia';
+import { Kafka } from 'kafkajs';
 
 const kafka = new Kafka({
-  clientId: env.KAFKA_CLIENT_ID_REST,
+  clientId: 'my-elysia-app',
   brokers: [...env.KAFKA_BROKERS.split(',')],
 });
 

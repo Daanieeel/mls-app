@@ -20,6 +20,7 @@ model User {
   globalMessages GlobalMessage[]
   keyPackages    KeyPackage[]
   userInboxItems UserInboxItem[]
+  refreshTokens  RefreshToken[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -144,4 +145,21 @@ model KeyPackage {
   updatedAt DateTime @updatedAt
 
   @@index([userId, usedAt])
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
 }
