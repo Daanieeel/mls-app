@@ -1,11 +1,11 @@
 'use client';
 
 import { Avatar } from '@/components/ui/avatar';
-import type { Chat } from '@/lib/chat/types';
+import type { GroupWithMetadata } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 interface ChatListItemProps {
-  chat: Chat;
+  group: GroupWithMetadata;
   isSelected: boolean;
   onClick: () => void;
 }
@@ -36,7 +36,7 @@ function formatTime(date?: Date): string {
   }).format(date);
 }
 
-export function ChatListItem({ chat, isSelected, onClick }: ChatListItemProps) {
+export function ChatListItem({ group, isSelected, onClick }: ChatListItemProps) {
   return (
     <button
       className={cn(
@@ -47,32 +47,32 @@ export function ChatListItem({ chat, isSelected, onClick }: ChatListItemProps) {
       onClick={onClick}
       type="button"
     >
-      <Avatar fallback={chat.name} size="sm" src={chat.avatarUrl} />
+      <Avatar fallback={group.name} size="sm" src={group.avatarUrl} />
 
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-center justify-between gap-2">
           <span
             className={cn(
               'truncate font-medium text-sidebar-foreground text-sm',
-              chat.unreadCount > 0 && 'font-semibold',
+              group.unreadCount > 0 && 'font-semibold',
             )}
           >
-            {chat.name}
+            {group.name}
           </span>
-          {chat.lastMessageTime && (
+          {group.lastMessageTime && (
             <span className="shrink-0 text-[10px] text-muted-foreground">
-              {formatTime(chat.lastMessageTime)}
+              {formatTime(group.lastMessageTime)}
             </span>
           )}
         </div>
 
         <div className="flex items-center justify-between gap-2">
           <span className="truncate text-muted-foreground text-xs">
-            {chat.lastMessage ?? 'No messages yet'}
+            {group.lastMessage ?? 'No messages yet'}
           </span>
-          {chat.unreadCount > 0 && (
+          {group.unreadCount > 0 && (
             <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary font-medium text-[10px] text-primary-foreground">
-              {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
+              {group.unreadCount > 99 ? '99+' : group.unreadCount}
             </span>
           )}
         </div>
