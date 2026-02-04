@@ -28,7 +28,7 @@ export abstract class MessageService {
       source: '/messages/',
       time: new Date().toISOString(),
       datacontenttype: 'application/json',
-      subject: createdMessage.id,
+      subject: body.groupId,
       data: createdMessage,
     });
     return messageEvent;
@@ -63,7 +63,7 @@ export abstract class MessageService {
       source: '/messages/',
       time: new Date().toISOString(),
       datacontenttype: 'application/json',
-      subject: params.messageId,
+      subject: body.groupId,
       data: updatedMessage,
     });
     return messageEvent;

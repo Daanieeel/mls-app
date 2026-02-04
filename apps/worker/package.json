@@ -12,10 +12,12 @@
   "dependencies": {
     "@repo/database": "*",
     "@repo/env": "*",
+    "@repo/utils": "*",
     "@t3-oss/env-core": "^0.13.10",
+    "cloudevents": "^10.0.0",
     "kafkajs": "^2.2.4",
-    "zod": "^4.3.6",
-    "@repo/utils": "*"
+    "redis": "^5.10.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@repo/typescript-config": "*",
