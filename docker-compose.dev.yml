@@ -90,24 +90,6 @@ services:
     networks:
       - dev-network
 
-  migrate:
-      container_name: prod-migrate
-      build:
-        context: .
-        dockerfile: apps/rest/Dockerfile
-        target: builder
-      env_file:
-        - ./.env
-      environment:
-        DATABASE_URL: ${DATABASE_URL}
-      command: ["sh", "-c", "cd packages/database && bun run db:migrate"]
-      depends_on:
-        postgres:
-          condition: service_healthy
-      networks:
-        - prod-network
-      restart: "no"
-
 networks:
   dev-network:
     driver: bridge
