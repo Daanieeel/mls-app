@@ -83,6 +83,7 @@
         "@repo/env": "*",
         "@t3-oss/env-core": "^0.13.10",
         "elysia": "1.1.17",
+        "redis": "^5.10.0",
         "zod": "^4.3.6",
       },
       "devDependencies": {

@@ -2,10 +2,12 @@ import { env } from '@repo/env';
 import { Elysia, t } from 'elysia';
 import { authenticateWebSocket, type AuthUser } from './auth';
 import { WebSocketModel } from './model';
+import { redisPlugin } from './utils/redis';
 
 const PORT = env.PORT_WEBSOCKET;
 
 const app = new Elysia({ prefix: '/socket', websocket: { idleTimeout: undefined } })
+  .use(redisPlugin())
   .derive(async ({ query }) => {
     // Extract token from query parameter
     const token = query.token;
