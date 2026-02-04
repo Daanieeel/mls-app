@@ -10,11 +10,16 @@ import {
 } from "@/lib/db";
 import type { GroupWithMetadata } from "@/lib/types";
 import { useSession } from "@/server/better-auth/client";
-import type {
-	DeleteMessagePayload,
-	Message,
-	UpdateMessagePayload,
-} from "./types";
+import type { Message } from "./types";
+
+interface UpdateMessagePayload {
+	messageId: string;
+	content: string;
+}
+
+interface DeleteMessagePayload {
+	messageId: string;
+}
 
 interface UseChatDataOptions {
 	selectedChatId: string | null;
@@ -66,7 +71,7 @@ export function useChatData({
 			// Don't allow sending until session is ready and we have a user id
 			if (isLoadingSession || !session?.user?.id) {
 				console.warn("Cannot send message: session is loading or missing");
-        // TODO: Show user feedback
+				// TODO: Show user feedback
 				return;
 			}
 

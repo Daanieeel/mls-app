@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import type { DeleteMessagePayload, Message, UpdateMessagePayload } from '@/lib/chat/types';
+import type { Message } from '@/lib/chat/types';
 import { useChatData } from '@/lib/chat/use-chat-data';
 import { useWebSocket } from '@/lib/chat/use-websocket';
 import { ChatHeader } from './chat-header';
@@ -25,32 +25,56 @@ export function ChatContainer() {
     markAsRead,
   } = useChatData({ selectedChatId });
 
-  // Handle incoming WebSocket messages
-  const handleNewMessage = useCallback(
-    (message: Message) => {
+  // Handle incoming WebSocket messages (UserInboxItem from MLS protocol)
+  const handleApplicationMessage = useCallback(
+    (
+      messageId: string,
+      groupId: string,
+      senderId: string,
+      payload: string,
+      timestamp: Date,
+      _seqId?: number,
+    ) => {
+      // TODO: Decrypt the payload using MLS
+      // For now, treat payload as plain text content
+      const message: Message = {
+        id: messageId, // Use the actual message ID from the database
+        chatId: groupId,
+        senderId, // Sender is stored in GlobalMessage.senderId, not encrypted
+        content: payload, // TODO: This should be decrypted content
+        timestamp,
+        status: 'delivered',
+        isOwn: false, // TODO: Compare senderId with current user's ID
+      };
       addMessage(message);
     },
     [addMessage],
   );
 
-  const handleUpdateMessage = useCallback(
-    (payload: UpdateMessagePayload) => {
-      updateMessage(payload);
+  const handleEdit = useCallback(
+    (_groupId: string, payload: string, messageId?: string) => {
+      if (!messageId) return;
+      // TODO: Decrypt the payload using MLS
+      updateMessage({
+        messageId,
+        content: payload, // TODO: This should be decrypted content
+      });
     },
     [updateMessage],
   );
 
-  const handleDeleteMessage = useCallback(
-    (payload: DeleteMessagePayload) => {
-      deleteMessage(payload);
+  const handleTombstone = useCallback(
+    (_groupId: string, _payloadd: string, messageId?: string) => {
+      if (!messageId) return;
+      deleteMessage({ messageId });
     },
     [deleteMessage],
   );
 
   const { isConnected, sendMessage: wsSendMessage } = useWebSocket({
-    onNewMessage: handleNewMessage,
-    onUpdateMessage: handleUpdateMessage,
-    onDeleteMessage: handleDeleteMessage,
+    onApplicationMessage: handleApplicationMessage,
+    onEdit: handleEdit,
+    onTombstone: handleTombstone,
   });
 
   const handleSendMessage = useCallback(
@@ -60,17 +84,22 @@ export function ChatContainer() {
       // Add message optimistically to local state
       sendMessage(content);
 
-      // Send via WebSocket
-      wsSendMessage(selectedChatId, content);
+      // TODO: Encrypt the content using MLS before sending
+      // For now, send as plain text
+      const encryptedPayload = content; // TODO: Replace with actual encryption
+      wsSendMessage(selectedChatId, encryptedPayload);
     },
     [selectedChatId, sendMessage, wsSendMessage],
   );
 
-  const handleSelectChat = useCallback((chatId: string) => {
-    setSelectedChatId(chatId);
-    // Mark the chat as read when selected
-    markAsRead(chatId);
-  }, [markAsRead]);
+  const handleSelectChat = useCallback(
+    (chatId: string) => {
+      setSelectedChatId(chatId);
+      // Mark the chat as read when selected
+      markAsRead(chatId);
+    },
+    [markAsRead],
+  );
 
   const handleToggleSidebar = useCallback(() => {
     setIsSidebarOpen((prev) => !prev);

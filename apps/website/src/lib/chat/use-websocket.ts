@@ -1,36 +1,41 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-
-import type {
-  DeleteMessagePayload,
-  Message,
-  NewMessagePayload,
-  UpdateMessagePayload,
-  WebSocketEventType,
-  WebSocketMessage,
-} from './types';
+import z from 'zod';
+import type { MLSWebSocketMessage, WebSocketEventType, WebSocketMessage } from './types';
+import { WebSocketMessageSchema } from './types';
 
 const WEBSOCKET_URL = 'ws://localhost:3002/socket';
 const RECONNECT_INTERVAL = 3000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 
 interface UseWebSocketOptions {
-  onNewMessage?: (message: Message) => void;
-  onUpdateMessage?: (payload: UpdateMessagePayload) => void;
-  onDeleteMessage?: (payload: DeleteMessagePayload) => void;
+  onMessage?: (message: MLSWebSocketMessage) => void;
+  onWelcome?: (groupId: string, payload: string) => void;
+  onCommit?: (groupId: string, payload: string) => void;
+  onApplicationMessage?: (groupId: string, payload: string, seqId?: number) => void;
+  onTombstone?: (groupId: string, payload: string, messageId?: string) => void;
+  onEdit?: (groupId: string, payload: string, messageId?: string) => void;
   onConnectionChange?: (connected: boolean) => void;
 }
 
 interface UseWebSocketReturn {
   isConnected: boolean;
-  sendMessage: (chatId: string, content: string) => void;
-  updateMessage: (messageId: string, chatId: string, content: string) => void;
-  deleteMessage: (messageId: string, chatId: string) => void;
+  sendMessage: (groupId: string, encryptedPayload: string, nonce?: string) => void;
+  updateMessage: (groupId: string, messageId: string, encryptedPayload: string) => void;
+  deleteMessage: (groupId: string, messageId: string) => void;
 }
 
 export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketReturn {
-  const { onNewMessage, onUpdateMessage, onDeleteMessage, onConnectionChange } = options;
+  const {
+    onMessage,
+    onWelcome,
+    onCommit,
+    onApplicationMessage,
+    onTombstone,
+    onEdit,
+    onConnectionChange,
+  } = options;
 
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
@@ -40,35 +45,59 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
   const handleMessage = useCallback(
     (event: MessageEvent) => {
       try {
-        const data = JSON.parse(event.data) as WebSocketMessage;
+        const rawData = JSON.parse(event.data);
+        const result = WebSocketMessageSchema.safeParse(rawData);
 
+        if (!result.success) {
+          console.error('[WebSocket] Invalid message format:', z.treeifyError(result.error));
+          return;
+        }
+
+        const { data } = result;
+
+        // Route to specific handlers based on event type
         switch (data.type) {
-          case 'message:new': {
-            const payload = data.payload as NewMessagePayload;
-            onNewMessage?.(payload.message);
+          case 'WELCOME':
+            console.log('[WebSocket] Received WELCOME for group:', data.group_id);
+            onMessage?.(data);
+            onWelcome?.(data.group_id, data.payload);
             break;
-          }
-          case 'message:update': {
-            const payload = data.payload as UpdateMessagePayload;
-            onUpdateMessage?.(payload);
+          case 'COMMIT':
+            console.log('[WebSocket] Received COMMIT for group:', data.group_id);
+            onMessage?.(data);
+            onCommit?.(data.group_id, data.payload);
             break;
-          }
-          case 'message:delete': {
-            const payload = data.payload as DeleteMessagePayload;
-            onDeleteMessage?.(payload);
+          case 'MSG':
+            console.log('[WebSocket] Received MSG for group:', data.group_id);
+            onMessage?.(data);
+            onApplicationMessage?.(data.group_id, data.payload, data.seq_id);
             break;
-          }
+          case 'TOMBSTONE':
+            console.log('[WebSocket] Received TOMBSTONE for group:', data.group_id);
+            onMessage?.(data);
+            onTombstone?.(data.group_id, data.payload, data.message_id);
+            break;
+          case 'EDIT':
+            console.log('[WebSocket] Received EDIT for group:', data.group_id);
+            onMessage?.(data);
+            onEdit?.(data.group_id, data.payload, data.message_id);
+            break;
           case 'connection:established':
             console.log('[WebSocket] Connection established');
             break;
-          default:
-            console.log('[WebSocket] Unhandled event type:', data.type);
+          case 'connection:error':
+            console.error('[WebSocket] Connection error event received');
+            break;
+          default: {
+            const exhaustiveCheck: never = data;
+            console.warn('[WebSocket] Unhandled event type:', exhaustiveCheck);
+          }
         }
       } catch (error) {
         console.error('[WebSocket] Failed to parse message:', error);
       }
     },
-    [onNewMessage, onUpdateMessage, onDeleteMessage],
+    [onMessage, onWelcome, onCommit, onApplicationMessage, onTombstone, onEdit],
   );
 
   const connect = useCallback(() => {
@@ -131,36 +160,49 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     return () => disconnect();
   }, [connect, disconnect]);
 
-  const sendWebSocketMessage = useCallback((type: WebSocketEventType, payload: unknown) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      const message: WebSocketMessage = {
-        type,
-        payload,
-        timestamp: new Date(),
-      };
-      wsRef.current.send(JSON.stringify(message));
-    } else {
-      console.warn('[WebSocket] Cannot send message: Not connected');
-    }
-  }, []);
+  const sendWebSocketMessage = useCallback(
+    (
+      type: WebSocketEventType,
+      groupId: string,
+      payload: string,
+      extras?: { nonce?: string; message_id?: string },
+    ) => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        const message: WebSocketMessage = {
+          type,
+          group_id: groupId,
+          payload,
+          timestamp: new Date(),
+          ...extras,
+        };
+        wsRef.current.send(JSON.stringify(message));
+      } else {
+        console.warn('[WebSocket] Cannot send message: Not connected');
+      }
+    },
+    [],
+  );
 
   const sendMessage = useCallback(
-    (chatId: string, content: string) => {
-      sendWebSocketMessage('message:new', { chatId, content });
+    (groupId: string, encryptedPayload: string, nonce?: string) => {
+      sendWebSocketMessage('MSG', groupId, encryptedPayload, nonce ? { nonce } : undefined);
     },
     [sendWebSocketMessage],
   );
 
   const updateMessage = useCallback(
-    (messageId: string, chatId: string, content: string) => {
-      sendWebSocketMessage('message:update', { messageId, chatId, content });
+    (groupId: string, messageId: string, encryptedPayload: string) => {
+      sendWebSocketMessage('EDIT', groupId, encryptedPayload, {
+        message_id: messageId,
+      });
     },
     [sendWebSocketMessage],
   );
 
   const deleteMessage = useCallback(
-    (messageId: string, chatId: string) => {
-      sendWebSocketMessage('message:delete', { messageId, chatId });
+    (groupId: string, messageId: string) => {
+      // For delete, payload might be an encrypted reference or just empty
+      sendWebSocketMessage('TOMBSTONE', groupId, '', { message_id: messageId });
     },
     [sendWebSocketMessage],
   );
