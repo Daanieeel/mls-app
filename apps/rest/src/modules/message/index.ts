@@ -3,7 +3,7 @@ import { kafkaPlugin } from '../../utils/kafka';
 import { requireAuth } from '../auth/guard';
 import { MessageModel } from './model';
 import { MessageService } from './service';
-import { TOPIC_TYPES } from '../../utils/events';
+import { KAFKA_TOPIC_TYPES } from '@repo/utils';
 
 export const messageRouter = new Elysia({ prefix: '/messages' })
   .use(kafkaPlugin())
@@ -14,7 +14,7 @@ export const messageRouter = new Elysia({ prefix: '/messages' })
       const createdCloudEvent = await MessageService.createMessage({ body, userId: user.id });
 
       producer.send({
-        topic: TOPIC_TYPES.MESSAGE,
+        topic: KAFKA_TOPIC_TYPES.MESSAGE,
         messages: [
           {
             key: body.groupId,
@@ -40,7 +40,7 @@ export const messageRouter = new Elysia({ prefix: '/messages' })
       });
 
       producer.send({
-        topic: TOPIC_TYPES.MESSAGE,
+        topic: KAFKA_TOPIC_TYPES.MESSAGE,
         messages: [
           {
             key: body.groupId,

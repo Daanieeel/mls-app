@@ -1,5 +1,6 @@
 import { Kafka } from 'kafkajs';
 import { env } from '@repo/env';
+import { KAFKA_TOPIC_TYPES } from '@repo/utils';
 
 const kafka = new Kafka({
   clientId: env.KAFKA_CLIENT_ID_WORKER,
@@ -13,6 +14,6 @@ const consumer = kafka.consumer({
 async function run() {
   await consumer.connect();
   consumer.subscribe({
-    topics: ['message-events'],
+    topics: Object.values(KAFKA_TOPIC_TYPES),
   });
 }

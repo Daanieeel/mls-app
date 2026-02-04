@@ -18,7 +18,8 @@
     "cloudevents": "^10.0.0",
     "elysia": "1.1.17",
     "kafkajs": "^2.2.4",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "@repo/utils": "*"
   },
   "devDependencies": {
     "@types/bun": "1.1.10",
