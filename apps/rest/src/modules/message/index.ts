@@ -9,8 +9,10 @@ export const messageRouter = new Elysia({ prefix: '/messages' })
   .use(requireAuth)
   .post(
     '/',
-    ({ body, user }) => {
-      return MessageService.createMessage({ body, userId: user.id });
+    ({ body, user, set }) => {
+      set.status = 202;
+      const createdMessage = MessageService.createMessage({ body, userId: user.id });
+      return createdMessage;
     },
     { body: MessageModel.CreateMessageBody },
   )
@@ -18,16 +20,36 @@ export const messageRouter = new Elysia({ prefix: '/messages' })
   .use(requireAuth)
   .patch(
     '/:messageId',
-    ({ body, params, user }) => {
-      return MessageService.updateMessage({ body, params, userId: user.id });
+    ({ body, params, user, set }) => {
+      const updatedMessage = MessageService.updateMessage({ body, params, userId: user.id });
+      // TODO: Error() => undefined
+      if (updatedMessage === undefined) {
+        set.status = 404;
+      } else {
+        set.status = 202;
+      }
+      return updatedMessage;
     },
     {
       body: MessageModel.UpdateMessageBody,
     },
   )
 
-  .delete('/:id', ({ params }) => {
-    return MessageService.deleteMessage({
-      params: params,
-    });
-  });
+  .delete(
+    '/:messageId',
+    ({ params, set }) => {
+      const deletedMessage = MessageService.deleteMessage({
+        params: params,
+      });
+      // TODO: Error() => undefined
+      if (deletedMessage === undefined) {
+        set.status = 404;
+      } else {
+        set.status = 202;
+      }
+      return deletedMessage;
+    },
+    {
+      params: MessageModel.DeleteMessageParams,
+    },
+  );
