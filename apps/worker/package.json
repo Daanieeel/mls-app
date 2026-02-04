@@ -10,15 +10,17 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@repo/database": "*",
+    "@repo/env": "*",
     "@t3-oss/env-core": "^0.13.10",
     "elysia": "1.1.17",
-    "zod": "^4.3.6",
-    "@repo/database": "*",
-    "@repo/env": "*"
+    "kafkajs": "^2.2.4",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@repo/typescript-config": "*",
     "@types/bun": "1.1.10",
-    "@types/node": "22.7.4",
-    "@repo/typescript-config": "*"
+    "@types/kafkajs": "^1.9.0",
+    "@types/node": "22.7.4"
   }
 }

@@ -1,13 +1,18 @@
+import { Kafka } from 'kafkajs';
 import { env } from '@repo/env';
-import { Elysia } from 'elysia';
 
-const PORT = env.PORT_WORKER;
+const kafka = new Kafka({
+  clientId: env.KAFKA_CLIENT_ID_WORKER,
+  brokers: env.KAFKA_BROKERS.split(','),
+});
 
-const app = new Elysia({ prefix: '/elysia' })
-  .get('/', () => 'Hi Elysia')
-  .get('/hello_world', () => 'Hello World')
-  .listen(PORT);
+const consumer = kafka.consumer({
+  groupId: env.KAFKA_GROUP_ID_WORKER,
+});
 
-export type App = typeof app;
-
-console.log(`🦊 Elysia Worker is running at http://${app.server?.hostname}:${app.server?.port}`);
+async function run() {
+  await consumer.connect();
+  consumer.subscribe({
+    topics: ['message-events'],
+  });
+}
