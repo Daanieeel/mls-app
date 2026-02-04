@@ -10,8 +10,9 @@ export const messageRouter = new Elysia({ prefix: '/messages' })
   .use(requireAuth)
   .post(
     '/',
-    ({ body, user, set, producer }) => {
-      const createdCloudEvent = MessageService.createMessage({ body, userId: user.id });
+    async ({ body, user, set, producer }) => {
+      const createdCloudEvent = await MessageService.createMessage({ body, userId: user.id });
+
       producer.send({
         topic: TOPIC_TYPES.MESSAGE,
         messages: [
@@ -21,6 +22,7 @@ export const messageRouter = new Elysia({ prefix: '/messages' })
           },
         ],
       });
+
       set.status = 202;
       return createdCloudEvent;
     },
@@ -30,15 +32,29 @@ export const messageRouter = new Elysia({ prefix: '/messages' })
   .use(requireAuth)
   .patch(
     '/:messageId',
-    ({ body, params, user, set }) => {
-      const updatedMessage = MessageService.updateMessage({ body, params, userId: user.id });
+    async ({ body, params, user, set, producer }) => {
+      const createdCloudEvent = await MessageService.updateMessage({
+        body,
+        params,
+        userId: user.id,
+      });
+
+      producer.send({
+        topic: TOPIC_TYPES.MESSAGE,
+        messages: [
+          {
+            key: body.groupId,
+            value: JSON.stringify(createdCloudEvent),
+          },
+        ],
+      });
       // TODO: Error() => undefined
-      if (updatedMessage === undefined) {
+      if (createdCloudEvent === undefined) {
         set.status = 404;
       } else {
         set.status = 202;
       }
-      return updatedMessage;
+      return createdCloudEvent;
     },
     {
       body: MessageModel.UpdateMessageBody,

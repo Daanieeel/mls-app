@@ -43,7 +43,7 @@ export abstract class MessageService {
     params: (typeof MessageModel.UpdateMessageParams)['static'];
     userId: string;
   }) {
-    return prisma.globalMessage.update({
+    const updatedMessage = prisma.globalMessage.update({
       where: {
         id: params.messageId,
       },
@@ -57,6 +57,16 @@ export abstract class MessageService {
         payload: Buffer.from(body.payload),
       },
     });
+    const messageEvent = new CloudEvent({
+      specversion: '1.0',
+      type: EVENT_TYPES.MESSAGE_UPDATED,
+      source: '/messages/',
+      time: new Date().toISOString(),
+      datacontenttype: 'application/json',
+      subject: params.messageId,
+      data: updatedMessage,
+    });
+    return messageEvent;
   }
 
   static deleteMessage({
