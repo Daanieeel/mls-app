@@ -4,16 +4,19 @@ export namespace GroupModel {
   export const CreateGroupBody = t.Object({
     name: t.String(),
   });
-  export const UpdateGroupBody = t.Object({
-    name: t.Optional(t.String()),
+  export const AddUserBody = t.Object({
+    targetId: t.String(),
   });
-  export const UpdateGroupParams = t.Object({
-    id: t.String(),
+  export const AddUserParams = t.Object({
+    groupId: t.String(),
   });
-  export const DeleteGroupParams = t.Object({
-    id: t.String(),
+  export const RemoveUserBody = t.Object({
+    targetId: t.String(),
   });
-  export const GetGroupParams = t.Object({
-    id: t.String(),
+  export const RemoveUserParams = t.Object({
+    groupId: t.String(),
+  });
+  export const LeaveGroupParams = t.Object({
+    groupId: t.String(),
   });
 }

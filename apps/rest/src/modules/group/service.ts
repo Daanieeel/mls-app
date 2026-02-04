@@ -4,62 +4,104 @@ import type { GroupModel } from './model';
 export abstract class GroupService {
   static createGroup({
     body,
-    id,
-  }: { body: typeof GroupModel.CreateGroupBody['static']; id: string }) {
+    executorId,
+  }: { body: typeof GroupModel.CreateGroupBody['static']; executorId: string }) {
     return prisma.group.create({
       data: {
         ...body,
         createdBy: {
           connect: {
-            id: id,
+            id: executorId,
           },
         },
       },
     });
   }
 
-  static updateGroup({
+  static addUserToGroup({
     body,
     params,
   }: {
-    body: typeof GroupModel.UpdateGroupBody['static'];
-    params: typeof GroupModel.UpdateGroupParams['static'];
+    body: typeof GroupModel.AddUserBody['static'];
+    params: typeof GroupModel.AddUserParams['static'];
   }) {
     return prisma.group.update({
       where: {
-        ...params,
+        id: params.groupId,
       },
       data: {
         ...body,
+        members: {
+          connect: {
+            userId_groupId: {
+              groupId: params.groupId,
+              userId: body.targetId,
+            },
+          },
+        },
       },
     });
   }
 
-  static deleteGroup({
+  static removeUserFromGroup({
+    body,
     params,
   }: {
-    params: typeof GroupModel.DeleteGroupParams['static'];
+    body: typeof GroupModel.RemoveUserBody['static'];
+    params: typeof GroupModel.RemoveUserParams['static'];
   }) {
-    return prisma.group.delete({
+    return prisma.group.update({
       where: {
-        ...params,
+        id: params.groupId,
+      },
+      data: {
+        ...body,
+        members: {
+          disconnect: {
+            userId_groupId: {
+              groupId: params.groupId,
+              userId: body.targetId,
+            },
+          },
+        },
       },
     });
   }
 
-  static getAllGroups() {
-    return prisma.group.findMany();
-  }
-
-  static getGroup({
+  static leaveGroup({
+    executorId,
     params,
-  }: {
-    params: typeof GroupModel.GetGroupParams['static'];
-  }) {
-    return prisma.group.findUnique({
+  }: { executorId: string; params: typeof GroupModel.LeaveGroupParams['static'] }) {
+    return prisma.group.update({
       where: {
-        id: params.id,
+        id: params.groupId,
+      },
+      data: {
+        members: {
+          disconnect: {
+            userId_groupId: {
+              userId: executorId,
+              groupId: params.groupId,
+            },
+          },
+        },
       },
     });
   }
+
+  static getAllGroups({ executorId }: { executorId: string }) {
+    return prisma.group.findMany({
+      where: {
+        members: {
+          some: {
+            userId: executorId,
+          },
+        },
+      },
+    });
+  }
+
+  static getGroupById({ executorId, groupId }: { executorId: string; groupId: string }) {}
+
+  static syncGroups({ executorId }: { executorId: string }) {}
 }
