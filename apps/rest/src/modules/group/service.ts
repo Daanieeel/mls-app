@@ -25,7 +25,6 @@ export abstract class GroupService {
             },
           })),
         },
-        memberIds: undefined, // Remove memberIds from the data
       },
     });
 
