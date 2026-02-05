@@ -40,11 +40,9 @@ const app = new Elysia({ prefix: '/socket', websocket: { idleTimeout: undefined 
 
     open(ws) {
       const user = ws.data.auth.user as AuthUser;
-      console.log(`WebSocket connection opened for user: ${user.id} (${user.email})`);
-      ws.send({
-        type: 'WELCOME',
-        payload: 'Welcome',
-        userId: user.id,
+      ws.data.subscriber.subscribe(`inbox:${user.id}`, (message) => {
+        const messageObject = JSON.parse(message);
+        ws.send(messageObject);
       });
     },
 

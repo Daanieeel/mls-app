@@ -1,7 +1,7 @@
 import { prisma } from '@repo/database';
 import type { MessageModel } from './model';
 import { CloudEvent } from 'cloudevents';
-import { CLOUD_EVENT_TYPES } from '@repo/utils';
+import { CLOUD_EVENT_TYPES, type MinimalCloudEvent } from '@repo/utils';
 
 export abstract class MessageService {
   static async createMessage({
@@ -22,7 +22,7 @@ export abstract class MessageService {
         payload: Buffer.from(body.payload),
       },
     });
-    const messageEvent = new CloudEvent({
+    const messageEvent: MinimalCloudEvent = new CloudEvent({
       specversion: '1.0',
       type: CLOUD_EVENT_TYPES.MESSAGE_SENT,
       source: '/messages/',
