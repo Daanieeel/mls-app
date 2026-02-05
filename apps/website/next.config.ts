@@ -7,9 +7,7 @@ import '@repo/env';
 /** @type {import("next").NextConfig} */
 const config = {
   output: 'standalone',
-  experimental: {
-    outputFileTracingRoot: require('node:path').join(__dirname, '../../'),
-  },
+  outputFileTracingRoot: require('node:path').join(__dirname, '../../'),
 };
 
 export default config;

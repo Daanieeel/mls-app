@@ -1,4 +1,3 @@
-// @ts-expect-error: VS Code bug causes it to not recognize the import
 import '@/styles/globals.css';
 
 import type { Metadata } from 'next';

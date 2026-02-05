@@ -1,22 +1,34 @@
 import { Elysia, t } from 'elysia';
 import { requireAuth } from '../auth/guard';
+import { kafkaPlugin } from '../../utils/kafka';
 import { GroupModel } from './model';
 import { GroupService } from './service';
 import { KAFKA_TOPIC_TYPES, type MinimalCloudEvent } from '@repo/utils';
-import { kafkaPlugin } from '../../utils/kafka';
 
 export const groupRouter = new Elysia({ prefix: '/groups' })
+  .use(kafkaPlugin())
   .use(requireAuth)
   .use(kafkaPlugin())
   .post(
     '/',
-    ({ body, user, set }) => {
-      const createdGroup = GroupService.createGroup({
+    async ({ body, user, set, producer }) => {
+      const createdCloudEvent: MinimalCloudEvent = await GroupService.createGroup({
         body: body,
         executorId: user.id,
       });
+
+      producer.send({
+        topic: KAFKA_TOPIC_TYPES.GROUP,
+        messages: [
+          {
+            key: createdCloudEvent.subject,
+            value: JSON.stringify(createdCloudEvent),
+          },
+        ],
+      });
+
       set.status = 202;
-      return createdGroup;
+      return createdCloudEvent;
     },
     {
       body: GroupModel.CreateGroupBody,
@@ -46,17 +58,28 @@ export const groupRouter = new Elysia({ prefix: '/groups' })
 
   .post(
     '/:id/remove-user',
-    ({ body, params, set }) => {
-      const updatedGroup = GroupService.removeUserFromGroup({
+    async ({ body, params, set, producer }) => {
+      const createdCloudEvent = await GroupService.removeUserFromGroup({
         body: body,
         params: params,
       });
-      if (updatedGroup === undefined) {
+
+      producer.send({
+        topic: KAFKA_TOPIC_TYPES.GROUP,
+        messages: [
+          {
+            key: createdCloudEvent.subject,
+            value: JSON.stringify(createdCloudEvent),
+          },
+        ],
+      });
+
+      if (createdCloudEvent === undefined) {
         set.status = 404;
       } else {
         set.status = 202;
       }
-      return updatedGroup;
+      return createdCloudEvent;
     },
     {
       body: GroupModel.RemoveUserBody,
