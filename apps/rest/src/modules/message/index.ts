@@ -82,5 +82,3 @@ export const messageRouter = new Elysia({ prefix: '/messages' })
       params: MessageModel.DeleteMessageParams,
     },
   );
-    },
-  );
