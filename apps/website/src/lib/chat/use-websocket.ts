@@ -13,7 +13,14 @@ interface UseWebSocketOptions {
   onMessage?: (message: MLSWebSocketMessage) => void;
   onWelcome?: (groupId: string, payload: string) => void;
   onCommit?: (groupId: string, payload: string) => void;
-  onApplicationMessage?: (groupId: string, payload: string, seqId?: number) => void;
+  onApplicationMessage?: (
+    messageId: string,
+    groupId: string,
+    senderId: string,
+    payload: string,
+    timestamp: Date,
+    seqId?: number,
+  ) => void;
   onTombstone?: (groupId: string, payload: string, messageId?: string) => void;
   onEdit?: (groupId: string, payload: string, messageId?: string) => void;
   onConnectionChange?: (connected: boolean) => void;
@@ -70,7 +77,14 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
           case 'MSG':
             console.log('[WebSocket] Received MSG for group:', data.group_id);
             onMessage?.(data);
-            onApplicationMessage?.(data.group_id, data.payload, data.seq_id);
+            onApplicationMessage?.(
+              data.message_id ?? 'unknown',
+              data.group_id,
+              data.sender_id ?? 'unknown',
+              data.payload,
+              data.timestamp ?? new Date(),
+              data.seq_id,
+            );
             break;
           case 'TOMBSTONE':
             console.log('[WebSocket] Received TOMBSTONE for group:', data.group_id);

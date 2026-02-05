@@ -53,6 +53,8 @@ const BaseWebSocketMessageSchema = z.object({
   payload: CryptoPayloadSchema,
   seq_id: z.number().int().nonnegative().optional(),
   timestamp: z.coerce.date().optional(),
+  message_id: z.string().optional(),
+  sender_id: z.string().optional(),
 });
 
 /**
