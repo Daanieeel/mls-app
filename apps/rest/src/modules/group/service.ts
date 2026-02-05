@@ -152,7 +152,7 @@ export abstract class GroupService {
     });
     const groupEvent: MinimalCloudEvent = new CloudEvent({
       specversion: '1.0',
-      type: CLOUD_EVENT_TYPES.GROUP_LEFT,
+      type: CLOUD_EVENT_TYPES.GROUP_USER_LEFT,
       source: '/groups/',
       time: new Date().toISOString(),
       datacontenttype: 'application/json',

@@ -6,7 +6,7 @@ export const CLOUD_EVENT_TYPES = {
   MESSAGE_DELETED: 'de.messenger.message.deleted',
   MESSAGE_NOTIFICATION_PUBLISHED: 'de.messenger.message.notification.published',
   KEYS_FETCHED: 'de.messenger.key.fetched',
-  GROUP_LEFT: 'de.messenger.group.left',
+  GROUP_USER_LEFT: 'de.messenger.group.left',
   GROUP_CREATED: 'de.messenger.group.created',
   GROUP_USER_ADDED: 'de.messenger.group.user.added',
   GROUP_USER_REMOVED: 'de.messenger.group.user.removed',
