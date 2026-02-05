@@ -3,6 +3,7 @@ import type { CloudEvent } from 'cloudevents';
 export const CLOUD_EVENT_TYPES = {
   MESSAGE_SENT: 'de.messenger.message.sent',
   MESSAGE_UPDATED: 'de.messenger.message.updated',
+  MESSAGE_DELETED: 'de.messenger.message.deleted',
   MESSAGE_NOTIFICATION_PUBLISHED: 'de.messenger.message.notification.published',
 } as const;
 

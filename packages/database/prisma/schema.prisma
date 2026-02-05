@@ -55,6 +55,7 @@ model GlobalMessage {
   payload Bytes
   type    String
   nonce   String @unique
+  groupId String
 
   sender             User            @relation(fields: [senderId], references: [id])
   senderId           String

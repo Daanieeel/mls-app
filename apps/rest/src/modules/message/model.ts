@@ -19,4 +19,10 @@ export namespace MessageModel {
   export const UpdateMessageParams = t.Object({
     messageId: t.String(),
   });
+  export const DeleteMessageBody = t.Object({
+    payload: t.String(),
+    nonce: t.String(),
+    type: t.String(),
+    groupId: t.String(),
+  });
 }
