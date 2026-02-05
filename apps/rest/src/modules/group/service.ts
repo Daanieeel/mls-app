@@ -66,14 +66,14 @@ export abstract class GroupService {
     });
   }
 
-  static removeUserFromGroup({
+  static async removeUserFromGroup({
     body,
     params,
   }: {
     body: (typeof GroupModel.RemoveUserBody)['static'];
     params: (typeof GroupModel.RemoveUserParams)['static'];
   }) {
-    return prisma.group.update({
+    const updatedGroup = await prisma.group.update({
       where: {
         id: params.groupId,
       },
@@ -88,6 +88,22 @@ export abstract class GroupService {
         },
       },
     });
+
+    const groupEvent: MinimalCloudEvent = new CloudEvent({
+      specversion: '1.0',
+      type: CLOUD_EVENT_TYPES.GROUP_USER_REMOVED,
+      source: '/groups/',
+      time: new Date().toISOString(),
+      datacontenttype: 'application/json',
+      subject: updatedGroup.id,
+      data: {
+        payload: body.welcomeMessage.payload,
+        type: body.welcomeMessage.type,
+        nonce: body.welcomeMessage.nonce,
+      },
+    });
+
+    return groupEvent;
   }
 
   static async leaveGroup({
@@ -116,7 +132,7 @@ export abstract class GroupService {
     });
     const groupEvent: MinimalCloudEvent = new CloudEvent({
       specversion: '1.0',
-      type: CLOUD_EVENT_TYPES.GROUP_LEAVED,
+      type: CLOUD_EVENT_TYPES.GROUP_LEFT,
       source: '/groups/',
       time: new Date().toISOString(),
       datacontenttype: 'application/json',

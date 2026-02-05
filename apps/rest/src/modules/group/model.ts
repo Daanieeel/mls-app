@@ -20,6 +20,12 @@ export namespace GroupModel {
   });
   export const RemoveUserBody = t.Object({
     targetId: t.String(),
+    options: t.String(),
+    welcomeMessage: t.Object({
+      payload: t.String(),
+      nonce: t.String(),
+      type: t.Literal('COMMIT'),
+    }),
   });
   export const RemoveUserParams = t.Object({
     groupId: t.String(),

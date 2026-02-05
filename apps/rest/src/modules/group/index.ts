@@ -4,7 +4,6 @@ import { kafkaPlugin } from '../../utils/kafka';
 import { GroupModel } from './model';
 import { GroupService } from './service';
 import { KAFKA_TOPIC_TYPES, type MinimalCloudEvent } from '@repo/utils';
-import { kafkaPlugin } from '../../utils/kafka';
 
 export const groupRouter = new Elysia({ prefix: '/groups' })
   .use(kafkaPlugin())
@@ -59,17 +58,28 @@ export const groupRouter = new Elysia({ prefix: '/groups' })
 
   .post(
     '/:id/remove-user',
-    ({ body, params, set }) => {
-      const updatedGroup = GroupService.removeUserFromGroup({
+    async ({ body, params, set, producer }) => {
+      const createdCloudEvent = await GroupService.removeUserFromGroup({
         body: body,
         params: params,
       });
-      if (updatedGroup === undefined) {
+
+      producer.send({
+        topic: KAFKA_TOPIC_TYPES.GROUP,
+        messages: [
+          {
+            key: createdCloudEvent.subject,
+            value: JSON.stringify(createdCloudEvent),
+          },
+        ],
+      });
+
+      if (createdCloudEvent === undefined) {
         set.status = 404;
       } else {
         set.status = 202;
       }
-      return updatedGroup;
+      return createdCloudEvent;
     },
     {
       body: GroupModel.RemoveUserBody,
