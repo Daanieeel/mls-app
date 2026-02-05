@@ -45,25 +45,45 @@ export abstract class GroupService {
     return groupEvent;
   }
 
-  static addUserToGroup({
+  static async addUserToGroup({
     body,
     params,
   }: {
     body: (typeof GroupModel.AddUserBody)['static'];
     params: (typeof GroupModel.AddUserParams)['static'];
   }) {
-    return prisma.group.update({
+    const updatedGroup = await prisma.group.update({
       where: {
         id: params.groupId,
       },
       data: {
         members: {
           create: {
-            userId: body.targetId,
+            user: {
+              connect: {
+                id: body.options.userId,
+              },
+            },
           },
         },
       },
     });
+
+    const groupEvent: MinimalCloudEvent = new CloudEvent({
+      specversion: '1.0',
+      type: CLOUD_EVENT_TYPES.GROUP_USER_ADDED,
+      source: '/groups/',
+      time: new Date().toISOString(),
+      datacontenttype: 'application/json',
+      subject: updatedGroup.id,
+      data: {
+        payload: body.welcomeMessage.payload,
+        type: body.welcomeMessage.type,
+        nonce: body.welcomeMessage.nonce,
+      },
+    });
+
+    return groupEvent;
   }
 
   static async removeUserFromGroup({

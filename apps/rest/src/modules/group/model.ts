@@ -13,7 +13,14 @@ export namespace GroupModel {
     }),
   });
   export const AddUserBody = t.Object({
-    targetId: t.String(),
+    welcomeMessage: t.Object({
+      payload: t.String(),
+      nonce: t.String(),
+      type: t.Literal('COMMIT'),
+    }),
+    options: t.Object({
+      userId: t.String(),
+    }),
   });
   export const AddUserParams = t.Object({
     groupId: t.String(),
