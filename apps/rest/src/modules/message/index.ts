@@ -3,16 +3,31 @@ import { kafkaPlugin } from '../../utils/kafka';
 import { requireAuth } from '../auth/guard';
 import { MessageModel } from './model';
 import { MessageService } from './service';
+import { KAFKA_TOPIC_TYPES, type MinimalCloudEvent } from '@repo/utils';
 
 export const messageRouter = new Elysia({ prefix: '/messages' })
   .use(kafkaPlugin())
   .use(requireAuth)
   .post(
     '/',
-    ({ body, user, set }) => {
+    async ({ body, user, set, producer }) => {
+      const createdCloudEvent: MinimalCloudEvent = await MessageService.createMessage({
+        body,
+        userId: user.id,
+      });
+
+      producer.send({
+        topic: KAFKA_TOPIC_TYPES.MESSAGE,
+        messages: [
+          {
+            key: body.groupId,
+            value: JSON.stringify(createdCloudEvent),
+          },
+        ],
+      });
+
       set.status = 202;
-      const createdMessage = MessageService.createMessage({ body, userId: user.id });
-      return createdMessage;
+      return createdCloudEvent;
     },
     { body: MessageModel.CreateMessageBody },
   )
@@ -20,15 +35,29 @@ export const messageRouter = new Elysia({ prefix: '/messages' })
   .use(requireAuth)
   .patch(
     '/:messageId',
-    ({ body, params, user, set }) => {
-      const updatedMessage = MessageService.updateMessage({ body, params, userId: user.id });
+    async ({ body, params, user, set, producer }) => {
+      const createdCloudEvent: MinimalCloudEvent = await MessageService.updateMessage({
+        body,
+        params,
+        userId: user.id,
+      });
+
+      producer.send({
+        topic: KAFKA_TOPIC_TYPES.MESSAGE,
+        messages: [
+          {
+            key: body.groupId,
+            value: JSON.stringify(createdCloudEvent),
+          },
+        ],
+      });
       // TODO: Error() => undefined
-      if (updatedMessage === undefined) {
+      if (createdCloudEvent === undefined) {
         set.status = 404;
       } else {
         set.status = 202;
       }
-      return updatedMessage;
+      return createdCloudEvent;
     },
     {
       body: MessageModel.UpdateMessageBody,

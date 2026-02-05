@@ -1,28 +1,54 @@
 import { env } from '@repo/env';
 import { Elysia, t } from 'elysia';
+import { authenticateWebSocket, type AuthUser } from './auth';
 import { WebSocketModel } from './model';
+import { redisPlugin } from './utils/redis';
 
 const PORT = env.PORT_WEBSOCKET;
 
 const app = new Elysia({ prefix: '/socket', websocket: { idleTimeout: undefined } })
+  .use(redisPlugin())
+  .derive(async ({ query }) => {
+    // Extract token from query parameter
+    const token = query.token;
+    const auth = await authenticateWebSocket(token);
+
+    return {
+      auth,
+    };
+  })
   .ws('/', {
+    query: t.Object({
+      token: t.String({ error: 'Authentication token is required' }),
+    }),
     body: WebSocketModel.MessageBody,
+
+    // Guard: reject connection if not authenticated
+    beforeHandle({ auth, error }) {
+      if (!auth.isAuthenticated || !auth.user) {
+        return error(401, {
+          error: 'Unauthorized',
+          message: auth.error || 'Authentication required',
+        });
+      }
+    },
+
     message(ws, message) {
-      ws.send({ type: 'RECEIVED', message });
+      const user = ws.data.auth.user as AuthUser;
+      ws.send({ type: 'RECEIVED', message, userId: user.id });
     },
+
     open(ws) {
-      console.log('WebSocket connection opened');
-      ws.send({
-        type: 'WELCOME',
-        payload: 'Welcome',
+      const user = ws.data.auth.user as AuthUser;
+      ws.data.subscriber.subscribe(`inbox:${user.id}`, (message) => {
+        const messageObject = JSON.parse(message);
+        ws.send(messageObject);
       });
     },
+
     close(ws) {
-      console.log('WebSocket connection closed');
-      ws.send({
-        type: 'EXIT',
-        payload: 'Goodbye',
-      });
+      const user = ws.data.auth.user as AuthUser;
+      console.log(`WebSocket connection closed for user: ${user.id}`);
     },
   })
   .listen(PORT);
