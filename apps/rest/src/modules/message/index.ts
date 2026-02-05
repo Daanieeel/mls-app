@@ -3,7 +3,7 @@ import { kafkaPlugin } from '../../utils/kafka';
 import { requireAuth } from '../auth/guard';
 import { MessageModel } from './model';
 import { MessageService } from './service';
-import { KAFKA_TOPIC_TYPES } from '@repo/utils';
+import { KAFKA_TOPIC_TYPES, type MinimalCloudEvent } from '@repo/utils';
 
 export const messageRouter = new Elysia({ prefix: '/messages' })
   .use(kafkaPlugin())
@@ -11,7 +11,10 @@ export const messageRouter = new Elysia({ prefix: '/messages' })
   .post(
     '/',
     async ({ body, user, set, producer }) => {
-      const createdCloudEvent = await MessageService.createMessage({ body, userId: user.id });
+      const createdCloudEvent: MinimalCloudEvent = await MessageService.createMessage({
+        body,
+        userId: user.id,
+      });
 
       producer.send({
         topic: KAFKA_TOPIC_TYPES.MESSAGE,
@@ -33,7 +36,7 @@ export const messageRouter = new Elysia({ prefix: '/messages' })
   .patch(
     '/:messageId',
     async ({ body, params, user, set, producer }) => {
-      const createdCloudEvent = await MessageService.updateMessage({
+      const createdCloudEvent: MinimalCloudEvent = await MessageService.updateMessage({
         body,
         params,
         userId: user.id,
@@ -77,5 +80,7 @@ export const messageRouter = new Elysia({ prefix: '/messages' })
     },
     {
       params: MessageModel.DeleteMessageParams,
+    },
+  );
     },
   );

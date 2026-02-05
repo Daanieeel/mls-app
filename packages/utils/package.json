@@ -20,5 +20,8 @@
       "node": "./src/index.ts",
       "default": "./src/index.ts"
     }
+  },
+  "dependencies": {
+    "cloudevents": "^10.0.0"
   }
 }

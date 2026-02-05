@@ -160,6 +160,9 @@
     "packages/utils": {
       "name": "@repo/utils",
       "version": "0.1.0",
+      "dependencies": {
+        "cloudevents": "^10.0.0",
+      },
       "devDependencies": {
         "@types/node": "^25.0.10",
         "typescript": "^5.0.0",
