@@ -17,10 +17,15 @@ export abstract class GroupService {
           },
         },
         members: {
-          connect: body.options.memberIds.map((item) => ({
-            userId: item,
+          create: body.options.memberIds.map((item) => ({
+            user: {
+              connect: {
+                id: item,
+              },
+            },
           })),
         },
+        memberIds: undefined, // Remove memberIds from the data
       },
     });
 
@@ -53,13 +58,9 @@ export abstract class GroupService {
         id: params.groupId,
       },
       data: {
-        ...body,
         members: {
-          connect: {
-            userId_groupId: {
-              groupId: params.groupId,
-              userId: body.targetId,
-            },
+          create: {
+            userId: body.targetId,
           },
         },
       },
@@ -78,12 +79,11 @@ export abstract class GroupService {
         id: params.groupId,
       },
       data: {
-        ...body,
         members: {
-          disconnect: {
+          delete: {
             userId_groupId: {
-              groupId: params.groupId,
               userId: body.targetId,
+              groupId: params.groupId,
             },
           },
         },
@@ -101,7 +101,7 @@ export abstract class GroupService {
       },
       data: {
         members: {
-          disconnect: {
+          delete: {
             userId_groupId: {
               userId: executorId,
               groupId: params.groupId,
