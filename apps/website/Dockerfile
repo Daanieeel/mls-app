@@ -20,6 +20,7 @@ COPY packages/api/package.json packages/api/
 COPY packages/database/package.json packages/database/
 COPY packages/typescript-config/package.json packages/typescript-config/
 COPY packages/env/package.json packages/env/
+COPY packages/utils/package.json packages/utils/
 
 # Install dependencies
 RUN bun install
