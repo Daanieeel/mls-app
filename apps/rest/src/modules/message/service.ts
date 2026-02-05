@@ -29,12 +29,15 @@ export abstract class MessageService {
       time: new Date().toISOString(),
       datacontenttype: 'application/json',
       subject: body.groupId,
-      data: createdMessage,
+      data: {
+        ...createdMessage,
+        payload: createdMessage.payload.toString(),
+      },
     });
     return messageEvent;
   }
 
-  static updateMessage({
+  static async updateMessage({
     body,
     params,
     userId,
@@ -43,7 +46,7 @@ export abstract class MessageService {
     params: (typeof MessageModel.UpdateMessageParams)['static'];
     userId: string;
   }) {
-    const updatedMessage = prisma.globalMessage.update({
+    const updatedMessage = await prisma.globalMessage.update({
       where: {
         id: params.messageId,
       },
@@ -64,7 +67,10 @@ export abstract class MessageService {
       time: new Date().toISOString(),
       datacontenttype: 'application/json',
       subject: body.groupId,
-      data: updatedMessage,
+      data: {
+        ...updatedMessage,
+        payload: updatedMessage.payload.toString(),
+      },
     });
     return messageEvent;
   }
