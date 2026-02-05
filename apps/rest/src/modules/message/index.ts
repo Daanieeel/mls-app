@@ -4,7 +4,6 @@ import { requireAuth } from '../auth/guard';
 import { MessageModel } from './model';
 import { MessageService } from './service';
 import { KAFKA_TOPIC_TYPES, type MinimalCloudEvent } from '@repo/utils';
-import { LoginBody } from '../auth/model';
 
 export const messageRouter = new Elysia({ prefix: '/messages' })
   .use(kafkaPlugin())

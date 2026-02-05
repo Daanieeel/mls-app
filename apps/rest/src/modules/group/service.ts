@@ -1,14 +1,16 @@
 import { prisma } from '@repo/database';
 import type { GroupModel } from './model';
+import { CloudEvent } from 'cloudevents';
+import { CLOUD_EVENT_TYPES, type MinimalCloudEvent } from '@repo/utils';
 
 export abstract class GroupService {
-  static createGroup({
+  static async createGroup({
     body,
     executorId,
   }: { body: (typeof GroupModel.CreateGroupBody)['static']; executorId: string }) {
-    return prisma.group.create({
+    const createdGroup = await prisma.group.create({
       data: {
-        ...body,
+        ...body.options,
         createdBy: {
           connect: {
             id: executorId,
@@ -16,6 +18,22 @@ export abstract class GroupService {
         },
       },
     });
+
+    const groupEvent: MinimalCloudEvent = new CloudEvent({
+      specversion: '1.0',
+      type: CLOUD_EVENT_TYPES.GROUP_CREATED,
+      source: '/groups/',
+      time: new Date().toISOString(),
+      datacontenttype: 'application/json',
+      subject: createdGroup.id,
+      data: {
+        payload: body.welcomeMessage.payload,
+        type: body.welcomeMessage.type,
+        nonce: body.welcomeMessage.nonce,
+      },
+    });
+
+    return groupEvent;
   }
 
   static addUserToGroup({
