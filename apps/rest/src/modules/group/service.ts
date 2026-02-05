@@ -1,21 +1,48 @@
 import { prisma } from '@repo/database';
 import type { GroupModel } from './model';
+import { CloudEvent } from 'cloudevents';
+import { CLOUD_EVENT_TYPES, type MinimalCloudEvent } from '@repo/utils';
 
 export abstract class GroupService {
-  static createGroup({
+  static async createGroup({
     body,
     executorId,
   }: { body: (typeof GroupModel.CreateGroupBody)['static']; executorId: string }) {
-    return prisma.group.create({
+    const createdGroup = await prisma.group.create({
       data: {
-        ...body,
+        ...body.options,
         createdBy: {
           connect: {
             id: executorId,
           },
         },
+        members: {
+          create: body.options.memberIds.map((item) => ({
+            user: {
+              connect: {
+                id: item,
+              },
+            },
+          })),
+        },
       },
     });
+
+    const groupEvent: MinimalCloudEvent = new CloudEvent({
+      specversion: '1.0',
+      type: CLOUD_EVENT_TYPES.GROUP_CREATED,
+      source: '/groups/',
+      time: new Date().toISOString(),
+      datacontenttype: 'application/json',
+      subject: createdGroup.id,
+      data: {
+        payload: body.welcomeMessage.payload,
+        type: body.welcomeMessage.type,
+        nonce: body.welcomeMessage.nonce,
+      },
+    });
+
+    return groupEvent;
   }
 
   static addUserToGroup({
@@ -30,13 +57,9 @@ export abstract class GroupService {
         id: params.groupId,
       },
       data: {
-        ...body,
         members: {
-          connect: {
-            userId_groupId: {
-              groupId: params.groupId,
-              userId: body.targetId,
-            },
+          create: {
+            userId: body.targetId,
           },
         },
       },
@@ -55,12 +78,11 @@ export abstract class GroupService {
         id: params.groupId,
       },
       data: {
-        ...body,
         members: {
-          disconnect: {
+          delete: {
             userId_groupId: {
-              groupId: params.groupId,
               userId: body.targetId,
+              groupId: params.groupId,
             },
           },
         },
@@ -78,7 +100,7 @@ export abstract class GroupService {
       },
       data: {
         members: {
-          disconnect: {
+          delete: {
             userId_groupId: {
               userId: executorId,
               groupId: params.groupId,

@@ -2,7 +2,15 @@ import { t } from 'elysia';
 
 export namespace GroupModel {
   export const CreateGroupBody = t.Object({
-    name: t.String(),
+    welcomeMessage: t.Object({
+      payload: t.String(),
+      nonce: t.String(),
+      type: t.Literal('WELCOME'),
+    }),
+    options: t.Object({
+      name: t.String(),
+      memberIds: t.Array(t.String()),
+    }),
   });
   export const AddUserBody = t.Object({
     targetId: t.String(),
