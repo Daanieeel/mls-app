@@ -6,11 +6,13 @@ export const CLOUD_EVENT_TYPES = {
   MESSAGE_DELETED: 'de.messenger.message.deleted',
   MESSAGE_NOTIFICATION_PUBLISHED: 'de.messenger.message.notification.published',
   GROUP_LEAVED: 'de.group.leaved',
+  KEYS_FETCHED: 'de.messenger.key.fetched',
 } as const;
 
 export const KAFKA_TOPIC_TYPES = {
   MESSAGE: 'message-events',
   GROUP: 'group-events',
+  KEY: 'key-events',
 } as const;
 
 export type CloudEventType = (typeof CLOUD_EVENT_TYPES)[keyof typeof CLOUD_EVENT_TYPES];
