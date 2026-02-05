@@ -33,6 +33,7 @@ export const groupRouter = new Elysia({ prefix: '/groups' })
       body: GroupModel.CreateGroupBody,
     },
   )
+
   .post(
     '/:id/add-user',
     ({ body, params, set }) => {
@@ -53,6 +54,7 @@ export const groupRouter = new Elysia({ prefix: '/groups' })
       params: GroupModel.AddUserParams,
     },
   )
+
   .post(
     '/:id/remove-user',
     ({ body, params, set }) => {
@@ -72,6 +74,7 @@ export const groupRouter = new Elysia({ prefix: '/groups' })
       params: GroupModel.RemoveUserParams,
     },
   )
+
   .post(
     '/:id/leave',
     ({ user, params, set }) => {
@@ -90,6 +93,7 @@ export const groupRouter = new Elysia({ prefix: '/groups' })
       params: GroupModel.LeaveGroupParams,
     },
   )
+
   .get('/', ({ user, set }) => {
     const groups = GroupService.getAllGroups({
       executorId: user.id,
@@ -97,6 +101,7 @@ export const groupRouter = new Elysia({ prefix: '/groups' })
     set.status = 200;
     return groups;
   })
+
   .get('/:id', ({ user, params, set }) => {
     const group = GroupService.getGroupById({
       executorId: user.id,
@@ -109,6 +114,7 @@ export const groupRouter = new Elysia({ prefix: '/groups' })
     }
     return group;
   })
+
   .get('/sync', ({ user, set }) => {
     const groups = GroupService.syncGroups({
       executorId: user.id,

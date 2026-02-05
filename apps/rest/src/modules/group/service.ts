@@ -16,6 +16,11 @@ export abstract class GroupService {
             id: executorId,
           },
         },
+        members: {
+          connect: body.options.memberIds.map((item) => ({
+            userId: item,
+          })),
+        },
       },
     });
 
