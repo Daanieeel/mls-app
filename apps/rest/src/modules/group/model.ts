@@ -27,4 +27,9 @@ export namespace GroupModel {
   export const LeaveGroupParams = t.Object({
     groupId: t.String(),
   });
+  export const LeaveGroupBody = t.Object({
+    payload: t.String(),
+    nonce: t.String(),
+    type: t.Literal('COMMIT'),
+  });
 }

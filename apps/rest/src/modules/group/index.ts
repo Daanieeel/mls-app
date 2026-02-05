@@ -4,10 +4,12 @@ import { kafkaPlugin } from '../../utils/kafka';
 import { GroupModel } from './model';
 import { GroupService } from './service';
 import { KAFKA_TOPIC_TYPES, type MinimalCloudEvent } from '@repo/utils';
+import { kafkaPlugin } from '../../utils/kafka';
 
 export const groupRouter = new Elysia({ prefix: '/groups' })
   .use(kafkaPlugin())
   .use(requireAuth)
+  .use(kafkaPlugin())
   .post(
     '/',
     async ({ body, user, set, producer }) => {
@@ -77,20 +79,33 @@ export const groupRouter = new Elysia({ prefix: '/groups' })
 
   .post(
     '/:id/leave',
-    ({ user, params, set }) => {
-      const updatedGroup = GroupService.leaveGroup({
+    async ({ user, params, set, producer, body }) => {
+      const createdCloudEvent: MinimalCloudEvent = await GroupService.leaveGroup({
         executorId: user.id,
         params: params,
+        body: body,
       });
-      if (updatedGroup === undefined) {
+
+      producer.send({
+        topic: KAFKA_TOPIC_TYPES.GROUP,
+        messages: [
+          {
+            key: createdCloudEvent.subject,
+            value: JSON.stringify(createdCloudEvent),
+          },
+        ],
+      });
+
+      if (createdCloudEvent === undefined) {
         set.status = 404;
       } else {
         set.status = 202;
       }
-      return updatedGroup;
+      return createdCloudEvent;
     },
     {
       params: GroupModel.LeaveGroupParams,
+      body: GroupModel.LeaveGroupBody,
     },
   )
 

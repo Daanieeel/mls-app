@@ -90,11 +90,16 @@ export abstract class GroupService {
     });
   }
 
-  static leaveGroup({
+  static async leaveGroup({
     executorId,
     params,
-  }: { executorId: string; params: (typeof GroupModel.LeaveGroupParams)['static'] }) {
-    return prisma.group.update({
+    body,
+  }: {
+    executorId: string;
+    params: (typeof GroupModel.LeaveGroupParams)['static'];
+    body: (typeof GroupModel.LeaveGroupBody)['static'];
+  }) {
+    const updatedGroup = await prisma.group.update({
       where: {
         id: params.groupId,
       },
@@ -109,6 +114,20 @@ export abstract class GroupService {
         },
       },
     });
+    const groupEvent: MinimalCloudEvent = new CloudEvent({
+      specversion: '1.0',
+      type: CLOUD_EVENT_TYPES.GROUP_LEAVED,
+      source: '/groups/',
+      time: new Date().toISOString(),
+      datacontenttype: 'application/json',
+      subject: updatedGroup.id,
+      data: {
+        nonce: body.nonce,
+        type: body.type,
+        payload: body.payload.toString(),
+      },
+    });
+    return groupEvent;
   }
 
   static getAllGroups({ executorId }: { executorId: string }) {

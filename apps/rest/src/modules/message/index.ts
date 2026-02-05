@@ -66,10 +66,9 @@ export const messageRouter = new Elysia({ prefix: '/messages' })
 
   .delete(
     '/:id',
-    async ({ params, set, body, producer }) => {
+    async ({ params, set, producer }) => {
       const createdCloudEvent = await MessageService.deleteMessage({
         params: params,
-        body: body,
       });
 
       producer.send({

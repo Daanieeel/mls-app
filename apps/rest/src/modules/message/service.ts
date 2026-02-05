@@ -83,10 +83,8 @@ export abstract class MessageService {
 
   static async deleteMessage({
     params,
-    body,
   }: {
     params: (typeof MessageModel.DeleteMessageParams)['static'];
-    body: (typeof MessageModel.DeleteMessageBody)['static'];
   }) {
     const deletedMessage = await prisma.globalMessage.delete({
       where: {
