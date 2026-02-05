@@ -5,7 +5,7 @@ export const CLOUD_EVENT_TYPES = {
   MESSAGE_UPDATED: 'de.messenger.message.updated',
   MESSAGE_DELETED: 'de.messenger.message.deleted',
   MESSAGE_NOTIFICATION_PUBLISHED: 'de.messenger.message.notification.published',
-  GROUP_LEFT: 'de.group.left',
+  GROUP_LEFT: 'de.messenger.group.left',
 } as const;
 
 export const KAFKA_TOPIC_TYPES = {
