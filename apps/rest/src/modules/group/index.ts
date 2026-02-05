@@ -2,9 +2,12 @@ import { Elysia, t } from 'elysia';
 import { requireAuth } from '../auth/guard';
 import { GroupModel } from './model';
 import { GroupService } from './service';
+import { KAFKA_TOPIC_TYPES, type MinimalCloudEvent } from '@repo/utils';
+import { kafkaPlugin } from '../../utils/kafka';
 
 export const groupRouter = new Elysia({ prefix: '/groups' })
   .use(requireAuth)
+  .use(kafkaPlugin())
   .post(
     '/',
     ({ body, user, set }) => {
@@ -19,6 +22,7 @@ export const groupRouter = new Elysia({ prefix: '/groups' })
       body: GroupModel.CreateGroupBody,
     },
   )
+
   .post(
     '/:id/add-user',
     ({ body, params, set }) => {
@@ -39,6 +43,7 @@ export const groupRouter = new Elysia({ prefix: '/groups' })
       params: GroupModel.AddUserParams,
     },
   )
+
   .post(
     '/:id/remove-user',
     ({ body, params, set }) => {
@@ -58,24 +63,39 @@ export const groupRouter = new Elysia({ prefix: '/groups' })
       params: GroupModel.RemoveUserParams,
     },
   )
+
   .post(
     '/:id/leave',
-    ({ user, params, set }) => {
-      const updatedGroup = GroupService.leaveGroup({
+    async ({ user, params, set, producer, body }) => {
+      const createdCloudEvent: MinimalCloudEvent = await GroupService.leaveGroup({
         executorId: user.id,
         params: params,
+        body: body,
       });
-      if (updatedGroup === undefined) {
+
+      producer.send({
+        topic: KAFKA_TOPIC_TYPES.GROUP,
+        messages: [
+          {
+            key: createdCloudEvent.subject,
+            value: JSON.stringify(createdCloudEvent),
+          },
+        ],
+      });
+
+      if (createdCloudEvent === undefined) {
         set.status = 404;
       } else {
         set.status = 202;
       }
-      return updatedGroup;
+      return createdCloudEvent;
     },
     {
       params: GroupModel.LeaveGroupParams,
+      body: GroupModel.LeaveGroupBody,
     },
   )
+
   .get('/', ({ user, set }) => {
     const groups = GroupService.getAllGroups({
       executorId: user.id,
@@ -83,6 +103,7 @@ export const groupRouter = new Elysia({ prefix: '/groups' })
     set.status = 200;
     return groups;
   })
+
   .get('/:id', ({ user, params, set }) => {
     const group = GroupService.getGroupById({
       executorId: user.id,
@@ -95,6 +116,7 @@ export const groupRouter = new Elysia({ prefix: '/groups' })
     }
     return group;
   })
+
   .get('/sync', ({ user, set }) => {
     const groups = GroupService.syncGroups({
       executorId: user.id,
