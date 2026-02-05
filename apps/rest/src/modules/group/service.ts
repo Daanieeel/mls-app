@@ -149,7 +149,23 @@ export abstract class GroupService {
           },
         },
       },
+      include: {
+        _count: {
+          select: {
+            members: true,
+          },
+        },
+      },
     });
+
+    if (updatedGroup._count.members === 0) {
+      prisma.group.delete({
+        where: {
+          id: params.groupId,
+        },
+      });
+    }
+
     const groupEvent: MinimalCloudEvent = new CloudEvent({
       specversion: '1.0',
       type: CLOUD_EVENT_TYPES.GROUP_USER_LEFT,

@@ -106,19 +106,23 @@ export const groupRouter = new Elysia({ prefix: '/groups' })
         body: body,
       });
 
-      producer.send({
-        topic: KAFKA_TOPIC_TYPES.GROUP,
-        messages: [
-          {
-            key: createdCloudEvent.subject,
-            value: JSON.stringify(createdCloudEvent),
-          },
-        ],
-      });
-
       if (createdCloudEvent === undefined) {
         set.status = 404;
+      } else if (
+        createdCloudEvent.data !== undefined &&
+        createdCloudEvent.data.payload === undefined
+      ) {
+        set.status = 202;
       } else {
+        producer.send({
+          topic: KAFKA_TOPIC_TYPES.GROUP,
+          messages: [
+            {
+              key: createdCloudEvent.subject,
+              value: JSON.stringify(createdCloudEvent),
+            },
+          ],
+        });
         set.status = 202;
       }
       return createdCloudEvent;
