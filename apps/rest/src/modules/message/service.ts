@@ -81,13 +81,30 @@ export abstract class MessageService {
     return messageEvent;
   }
 
-  static deleteMessage({
+  static async deleteMessage({
     params,
-  }: { params: (typeof MessageModel.DeleteMessageParams)['static'] }) {
-    return prisma.globalMessage.delete({
+    body,
+  }: {
+    params: (typeof MessageModel.DeleteMessageParams)['static'];
+    body: (typeof MessageModel.DeleteMessageBody)['static'];
+  }) {
+    const deletedMessage = await prisma.globalMessage.delete({
       where: {
         ...params,
       },
     });
+    const messageEvent: MinimalCloudEvent = new CloudEvent({
+      specversion: '1.0',
+      type: CLOUD_EVENT_TYPES.MESSAGE_DELETED,
+      source: '/messages/',
+      time: new Date().toISOString(),
+      datacontenttype: 'application/json',
+      subject: deletedMessage.groupId,
+      data: {
+        ...deletedMessage,
+        payload: deletedMessage.payload.toString(),
+      },
+    });
+    return messageEvent;
   }
 }

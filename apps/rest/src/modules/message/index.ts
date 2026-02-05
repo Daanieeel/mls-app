@@ -4,6 +4,7 @@ import { requireAuth } from '../auth/guard';
 import { MessageModel } from './model';
 import { MessageService } from './service';
 import { KAFKA_TOPIC_TYPES, type MinimalCloudEvent } from '@repo/utils';
+import { LoginBody } from '../auth/model';
 
 export const messageRouter = new Elysia({ prefix: '/messages' })
   .use(kafkaPlugin())
@@ -65,20 +66,33 @@ export const messageRouter = new Elysia({ prefix: '/messages' })
   )
 
   .delete(
-    '/:messageId',
-    ({ params, set }) => {
-      const deletedMessage = MessageService.deleteMessage({
+    '/:id',
+    async ({ params, set, body, producer }) => {
+      const createdCloudEvent = await MessageService.deleteMessage({
         params: params,
+        body: body,
       });
+
+      producer.send({
+        topic: KAFKA_TOPIC_TYPES.MESSAGE,
+        messages: [
+          {
+            key: createdCloudEvent.subject,
+            value: JSON.stringify(createdCloudEvent),
+          },
+        ],
+      });
+
       // TODO: Error() => undefined
-      if (deletedMessage === undefined) {
+      if (createdCloudEvent === undefined) {
         set.status = 404;
       } else {
         set.status = 202;
       }
-      return deletedMessage;
+      return createdCloudEvent;
     },
     {
       params: MessageModel.DeleteMessageParams,
+      body: MessageModel.DeleteMessageBody,
     },
   );
