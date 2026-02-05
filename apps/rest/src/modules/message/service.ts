@@ -19,6 +19,12 @@ export abstract class MessageService {
             id: userId,
           },
         },
+        group: {
+          connect: {
+            id: body.groupId,
+          },
+        },
+        groupId: undefined,
         payload: Buffer.from(body.payload),
       },
     });
@@ -48,7 +54,7 @@ export abstract class MessageService {
   }) {
     const updatedMessage = await prisma.globalMessage.update({
       where: {
-        id: params.messageId,
+        id: params.id,
       },
       data: {
         ...body,
@@ -66,7 +72,7 @@ export abstract class MessageService {
       source: '/messages/',
       time: new Date().toISOString(),
       datacontenttype: 'application/json',
-      subject: body.groupId,
+      subject: updatedMessage.groupId,
       data: {
         ...updatedMessage,
         payload: updatedMessage.payload.toString(),

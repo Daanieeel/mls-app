@@ -11,12 +11,16 @@ export namespace MessageModel {
     nonce: t.String(),
     payload: t.String(),
     type: t.String(),
-    groupId: t.String(),
+    updatedMessage: t.Object({
+      payload: t.String(),
+      nonce: t.String(),
+      type: t.String(),
+    }),
   });
   export const DeleteMessageParams = t.Object({
     id: t.String(),
   });
   export const UpdateMessageParams = t.Object({
-    messageId: t.String(),
+    id: t.String(),
   });
 }
