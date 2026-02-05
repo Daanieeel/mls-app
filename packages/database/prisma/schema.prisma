@@ -59,6 +59,8 @@ model GlobalMessage {
   sender             User            @relation(fields: [senderId], references: [id])
   senderId           String
   receiverInboxItems UserInboxItem[]
+  group              Group           @relation(fields: [groupId], references: [id])
+  groupId            String
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -89,6 +91,7 @@ model Group {
   createdBy   User          @relation("UserCreatedGroups", fields: [createdById], references: [id])
   createdById String
   members     GroupMember[]
+  globalMessages GlobalMessage[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -34,7 +34,7 @@ export const messageRouter = new Elysia({ prefix: '/messages' })
 
   .use(requireAuth)
   .patch(
-    '/:messageId',
+    '/:id',
     async ({ body, params, user, set, producer }) => {
       const createdCloudEvent: MinimalCloudEvent = await MessageService.updateMessage({
         body,
@@ -46,7 +46,7 @@ export const messageRouter = new Elysia({ prefix: '/messages' })
         topic: KAFKA_TOPIC_TYPES.MESSAGE,
         messages: [
           {
-            key: body.groupId,
+            key: createdCloudEvent.subject,
             value: JSON.stringify(createdCloudEvent),
           },
         ],
