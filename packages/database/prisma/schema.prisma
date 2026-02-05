@@ -55,7 +55,6 @@ model GlobalMessage {
   payload Bytes
   type    String
   nonce   String @unique
-  groupId String
 
   sender             User            @relation(fields: [senderId], references: [id])
   senderId           String
@@ -89,9 +88,9 @@ model Group {
   id   String @id @default(cuid())
   name String
 
-  createdBy   User          @relation("UserCreatedGroups", fields: [createdById], references: [id])
-  createdById String
-  members     GroupMember[]
+  createdBy      User            @relation("UserCreatedGroups", fields: [createdById], references: [id])
+  createdById    String
+  members        GroupMember[]
   globalMessages GlobalMessage[]
 
   createdAt DateTime @default(now())
