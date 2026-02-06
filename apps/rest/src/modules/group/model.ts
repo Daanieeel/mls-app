@@ -2,6 +2,8 @@ import { t } from 'elysia';
 
 export namespace GroupModel {
   export const CreateGroupBody = t.Object({
+    groupId: t.String(),
+    senderId: t.String(),
     welcomeMessage: t.Object({
       payload: t.String(),
       nonce: t.String(),
@@ -13,6 +15,8 @@ export namespace GroupModel {
     }),
   });
   export const AddUserBody = t.Object({
+    groupId: t.String(),
+    senderId: t.String(),
     welcomeMessage: t.Object({
       payload: t.String(),
       nonce: t.String(),
@@ -26,6 +30,8 @@ export namespace GroupModel {
     groupId: t.String(),
   });
   export const RemoveUserBody = t.Object({
+    groupId: t.String(),
+    senderId: t.String(),
     targetId: t.String(),
     options: t.String(),
     welcomeMessage: t.Object({
@@ -41,6 +47,8 @@ export namespace GroupModel {
     groupId: t.String(),
   });
   export const LeaveGroupBody = t.Object({
+    groupId: t.String(),
+    senderId: t.String(),
     payload: t.String(),
     nonce: t.String(),
     type: t.Literal('COMMIT'),

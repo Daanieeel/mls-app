@@ -6,11 +6,14 @@ export namespace MessageModel {
     payload: t.String(),
     type: t.String(),
     groupId: t.String(),
+    senderId: t.String(),
   });
   export const UpdateMessageBody = t.Object({
     nonce: t.String(),
     payload: t.String(),
     type: t.String(),
+    groupId: t.String(),
+    senderId: t.String(),
     updatedMessage: t.Object({
       payload: t.String(),
       nonce: t.String(),
