@@ -3,33 +3,51 @@ import Elysia from 'elysia';
 import { KeyService } from './service';
 import { kafkaPlugin } from '../../utils/kafka';
 import { KeyModel } from './model';
+import {
+  PrismaClientInitializationError,
+  PrismaClientKnownRequestError,
+  PrismaClientRustPanicError,
+  PrismaClientUnknownRequestError,
+} from '@repo/database/generated/prisma/runtime/library';
+import { NoKeysFoundError } from '../../utils/custom_errors';
 
 export const messageRouter = new Elysia({ prefix: '/users' }).use(kafkaPlugin()).get(
-  '/:id/invitation-key',
+  '/:userId',
   async ({ params, set, producer }) => {
-    // ? MinimalCloudEvent
-    const createdCloudEvent = await KeyService.fetchKeys({
-      params: params,
-    });
+    try {
+      // ? MinimalCloudEvent
+      const createdCloudEvent = await KeyService.fetchKeys({
+        params: params,
+      });
 
-    producer.send({
-      topic: KAFKA_TOPIC_TYPES.KEY,
-      messages: [
-        {
-          key: createdCloudEvent.subject,
-          value: JSON.stringify(createdCloudEvent),
-        },
-      ],
-    });
-    // TODO: Error() => undefined
-    if (createdCloudEvent === undefined) {
-      set.status = 404;
-    } else {
+      producer.send({
+        topic: KAFKA_TOPIC_TYPES.KEY,
+        messages: [
+          {
+            key: createdCloudEvent?.subject,
+            value: JSON.stringify(createdCloudEvent),
+          },
+        ],
+      });
+
       set.status = 202;
+
+      return createdCloudEvent;
+    } catch (e) {
+      if (
+        e instanceof PrismaClientKnownRequestError ||
+        PrismaClientUnknownRequestError ||
+        PrismaClientRustPanicError
+      ) {
+        set.status = 500;
+      }
+      if (e instanceof PrismaClientInitializationError) {
+        set.status = 503;
+      }
+      if (e instanceof NoKeysFoundError) {
+        set.status = 404;
+      }
     }
-    return createdCloudEvent;
   },
-  {
-    params: KeyModel.FetchKeyParams,
-  },
+  { params: KeyModel.FetchKeyParams },
 );
