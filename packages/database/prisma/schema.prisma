@@ -147,7 +147,7 @@ model KeyPackage {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([userId, usedAt])
+  @@index([userId, usedAt, createdAt])
 }
 
 model RefreshToken {
