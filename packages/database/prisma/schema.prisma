@@ -53,7 +53,7 @@ model UserInboxItem {
 model GlobalMessage {
   id      String @id @default(cuid())
   payload Bytes
-  type    String
+  type    GlobalMessageType
   nonce   String @unique
 
   sender             User            @relation(fields: [senderId], references: [id])
@@ -67,6 +67,14 @@ model GlobalMessage {
 
   @@index([senderId])
   @@index([createdAt])
+}
+
+enum GlobalMessageType {
+  COMMIT
+  MSG
+  WELCOME
+  TOMBSTONE
+  EDIT
 }
 
 model GroupMember {
