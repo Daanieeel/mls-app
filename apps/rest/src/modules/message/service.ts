@@ -57,13 +57,10 @@ export abstract class MessageService {
     const updatedMessage = await prisma.globalMessage.update({
       where: {
         id: params.id,
+        senderId: userId,
       },
       data: {
-        sender: {
-          connect: {
-            id: userId,
-          },
-        },
+        ...body,
         payload: Buffer.from(body.payload),
       },
     });
@@ -84,12 +81,15 @@ export abstract class MessageService {
 
   static async deleteMessage({
     params,
+    body,
   }: {
+    body: (typeof MessageModel.DeleteMessageBody)['static'];
     params: (typeof MessageModel.DeleteMessageParams)['static'];
   }) {
     const deletedMessage = await prisma.globalMessage.delete({
       where: {
-        ...params,
+        id: params.id,
+        senderId: body.executorId,
       },
     });
     const messageEvent: MinimalCloudEvent = new CloudEvent({
@@ -107,5 +107,47 @@ export abstract class MessageService {
       },
     });
     return messageEvent;
+  }
+
+  static async getAllMessages({
+    body,
+  }: {
+    body: (typeof MessageModel.GetAllMessagesBody)['static'];
+  }) {
+    const messages = await prisma.globalMessage.findMany({
+      where: {
+        groupId: body.groupId,
+        group: {
+          members: {
+            some: {
+              userId: body.executorId,
+            },
+          },
+        },
+      },
+    });
+
+    return messages;
+  }
+
+  static async getMessageById({
+    body,
+    params,
+  }: {
+    body: (typeof MessageModel.GetMessageByIdBody)['static'];
+    params: (typeof MessageModel.GetMessageByIdParams)['static'];
+  }) {
+    const message = await prisma.globalMessage.findFirst({
+      where: {
+        id: params.messageId,
+        group: {
+          members: {
+            some: {
+              userId: body.executorId,
+            },
+          },
+        },
+      },
+    });
   }
 }

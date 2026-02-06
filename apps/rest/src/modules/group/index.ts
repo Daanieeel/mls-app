@@ -5,6 +5,9 @@ import { GroupModel } from './model';
 import { GroupService } from './service';
 import { KAFKA_TOPIC_TYPES, type MinimalCloudEvent } from '@repo/utils';
 
+//TODO:HELP ticket#27, jede Vorgabe erfüllt sich bereits oder bin ich dumm?!?!?
+// Daniel da musst du nochmal drübergucken
+
 export const groupRouter = new Elysia({ prefix: '/groups' })
   .use(requireAuth)
   .use(kafkaPlugin())

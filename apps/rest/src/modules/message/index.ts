@@ -66,9 +66,10 @@ export const messageRouter = new Elysia({ prefix: '/messages' })
 
   .delete(
     '/:id',
-    async ({ params, set, producer }) => {
+    async ({ params, body, set, producer }) => {
       const createdCloudEvent = await MessageService.deleteMessage({
         params: params,
+        body: body,
       });
 
       producer.send({
@@ -92,5 +93,35 @@ export const messageRouter = new Elysia({ prefix: '/messages' })
     {
       params: MessageModel.DeleteMessageParams,
       body: MessageModel.DeleteMessageBody,
+    },
+  )
+
+  .get(
+    '/',
+    async ({ body }) => {
+      const messages = await MessageService.getAllMessages({
+        body: body,
+      });
+
+      return messages;
+    },
+    {
+      body: MessageModel.GetAllMessagesBody,
+    },
+  )
+
+  .get(
+    '/:id',
+    async ({ body, params }) => {
+      const message = await MessageService.getMessageById({
+        body: body,
+        params: params,
+      });
+
+      return message;
+    },
+    {
+      body: MessageModel.GetMessageByIdBody,
+      params: MessageModel.GetMessageByIdParams,
     },
   );
