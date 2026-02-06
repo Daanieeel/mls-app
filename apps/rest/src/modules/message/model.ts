@@ -27,6 +27,18 @@ export namespace MessageModel {
     payload: t.String(),
     nonce: t.String(),
     type: t.String(),
+    executorId: t.String(),
     groupId: t.String(),
+  });
+  export const GetAllMessagesBody = t.Object({
+    groupId: t.String(),
+    executorId: t.String(),
+  });
+  export const GetMessageByIdBody = t.Object({
+    groupId: t.String(),
+    executorId: t.String(),
+  });
+  export const GetMessageByIdParams = t.Object({
+    messageId: t.String(),
   });
 }
