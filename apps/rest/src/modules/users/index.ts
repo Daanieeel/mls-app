@@ -4,10 +4,10 @@ import { KeyService } from './service';
 import { kafkaPlugin } from '../../utils/kafka';
 import { KeyModel } from './model';
 
-export const messageRouter = new Elysia({ prefix: '/keys' }).use(kafkaPlugin()).get(
-  '/:userId',
+export const messageRouter = new Elysia({ prefix: '/users' }).use(kafkaPlugin()).get(
+  '/:id/invitation-key',
   async ({ params, set, producer }) => {
-    // ? kein MinimalCloudEvent
+    // ? MinimalCloudEvent
     const createdCloudEvent = await KeyService.fetchKeys({
       params: params,
     });

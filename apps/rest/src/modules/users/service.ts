@@ -10,8 +10,12 @@ export abstract class KeyService {
     params: (typeof KeyModel.FetchKeyParams)['static'];
   }) {
     const fetchedKeys = await prisma.keyPackage.findFirst({
+      orderBy: {
+        createdAt: 'asc',
+      },
       where: {
         userId: params.userId,
+        usedAt: undefined,
       },
     });
 
