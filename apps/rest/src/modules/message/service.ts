@@ -23,7 +23,7 @@ export abstract class MessageService {
             id: body.groupId,
           },
         },
-        type: body.type,
+        type: 'TOMBSTONE',
         nonce: body.nonce,
         payload: Buffer.from(body.payload),
       },
@@ -60,7 +60,8 @@ export abstract class MessageService {
         senderId: userId,
       },
       data: {
-        ...body,
+        type: 'TOMBSTONE',
+        nonce: body.nonce,
         payload: Buffer.from(body.payload),
       },
     });
