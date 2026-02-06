@@ -1,7 +1,7 @@
 import { prisma } from '@repo/database';
 import type { MessageModel } from './model';
 import { CloudEvent } from 'cloudevents';
-import { CLOUD_EVENT_TYPES, type MinimalCloudEvent } from '@repo/utils';
+import { CLOUD_EVENT_TYPES, type MinimalCloudEventData, type MinimalCloudEvent } from '@repo/utils';
 
 export abstract class MessageService {
   static async createMessage({
@@ -13,7 +13,6 @@ export abstract class MessageService {
   }) {
     const createdMessage = await prisma.globalMessage.create({
       data: {
-        ...body,
         sender: {
           connect: {
             id: userId,
@@ -24,7 +23,8 @@ export abstract class MessageService {
             id: body.groupId,
           },
         },
-        groupId: undefined,
+        type: body.type,
+        nonce: body.nonce,
         payload: Buffer.from(body.payload),
       },
     });
@@ -37,6 +37,8 @@ export abstract class MessageService {
       subject: body.groupId,
       data: {
         ...createdMessage,
+        // ? TOMBSTONE
+        type: 'TOMBSTONE',
         payload: createdMessage.payload.toString(),
       },
     });
@@ -57,7 +59,6 @@ export abstract class MessageService {
         id: params.id,
       },
       data: {
-        ...body,
         sender: {
           connect: {
             id: userId,
@@ -100,6 +101,8 @@ export abstract class MessageService {
       subject: deletedMessage.groupId,
       data: {
         ...deletedMessage,
+        // ? TOMBSTONE
+        type: 'TOMBSTONE',
         payload: deletedMessage.payload.toString(),
       },
     });

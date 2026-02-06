@@ -21,9 +21,11 @@ export const KAFKA_TOPIC_TYPES = {
 export type CloudEventType = (typeof CLOUD_EVENT_TYPES)[keyof typeof CLOUD_EVENT_TYPES];
 
 export type MinimalCloudEventData = {
-  type: string;
+  type: 'COMMIT' | 'MSG' | 'WELCOME' | 'TOMBSTONE' | 'EDIT';
   payload: string;
   nonce: string;
+  groupId: string;
+  senderId: string;
 };
 
 export type MinimalCloudEvent = CloudEvent<MinimalCloudEventData>;

@@ -39,6 +39,8 @@ export abstract class GroupService {
         payload: body.welcomeMessage.payload,
         type: body.welcomeMessage.type,
         nonce: body.welcomeMessage.nonce,
+        groupId: body.groupId,
+        senderId: body.senderId,
       },
     });
 
@@ -80,6 +82,8 @@ export abstract class GroupService {
         payload: body.welcomeMessage.payload,
         type: body.welcomeMessage.type,
         nonce: body.welcomeMessage.nonce,
+        groupId: body.senderId,
+        senderId: body.senderId,
       },
     });
 
@@ -120,6 +124,8 @@ export abstract class GroupService {
         payload: body.welcomeMessage.payload,
         type: body.welcomeMessage.type,
         nonce: body.welcomeMessage.nonce,
+        groupId: body.senderId,
+        senderId: body.senderId,
       },
     });
 
@@ -177,6 +183,8 @@ export abstract class GroupService {
         nonce: body.nonce,
         type: body.type,
         payload: body.payload.toString(),
+        groupId: body.senderId,
+        senderId: body.senderId,
       },
     });
     return groupEvent;
