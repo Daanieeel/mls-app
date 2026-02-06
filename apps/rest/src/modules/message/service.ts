@@ -13,7 +13,6 @@ export abstract class MessageService {
   }) {
     const createdMessage = await prisma.globalMessage.create({
       data: {
-        ...body,
         sender: {
           connect: {
             id: userId,
@@ -24,7 +23,8 @@ export abstract class MessageService {
             id: body.groupId,
           },
         },
-        groupId: undefined,
+        type: body.type,
+        nonce: body.nonce,
         payload: Buffer.from(body.payload),
       },
     });
@@ -57,7 +57,6 @@ export abstract class MessageService {
         id: params.id,
       },
       data: {
-        ...body,
         sender: {
           connect: {
             id: userId,
