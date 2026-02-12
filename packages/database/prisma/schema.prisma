@@ -35,11 +35,13 @@ model UserInboxItem {
   payload Bytes
   type    String
   nonce   String @unique
+  groupId String // Group the message belongs to (for sync without message relation)
 
-  receiver   User          @relation(fields: [receiverId], references: [id])
+  receiver   User           @relation(fields: [receiverId], references: [id])
   receiverId String
-  message    GlobalMessage @relation(fields: [messageId], references: [id])
-  messageId  String
+  message    GlobalMessage? @relation(fields: [messageId], references: [id])
+  messageId  String?
+  senderId   String? // Sender ID (for sync without message relation)
 
   readAt      DateTime?
   deliveredAt DateTime?
@@ -48,6 +50,7 @@ model UserInboxItem {
 
   @@index([receiverId, seq_id])
   @@index([messageId])
+  @@index([groupId])
 }
 
 model GlobalMessage {

@@ -4,16 +4,14 @@ import { kafkaPlugin } from '../../utils/kafka';
 import { GroupModel } from './model';
 import { GroupService } from './service';
 import { KAFKA_TOPIC_TYPES, type MinimalCloudEvent } from '@repo/utils';
-import { kafkaPlugin } from '../../utils/kafka';
 
 export const groupRouter = new Elysia({ prefix: '/groups' })
   .use(kafkaPlugin())
   .use(requireAuth)
-  .use(kafkaPlugin())
   .post(
     '/',
     async ({ body, user, set, producer }) => {
-      const createdCloudEvent: MinimalCloudEvent = await GroupService.createGroup({
+      const { group, event } = await GroupService.createGroup({
         body: body,
         executorId: user.id,
       });
@@ -22,14 +20,14 @@ export const groupRouter = new Elysia({ prefix: '/groups' })
         topic: KAFKA_TOPIC_TYPES.GROUP,
         messages: [
           {
-            key: createdCloudEvent.subject,
-            value: JSON.stringify(createdCloudEvent),
+            key: event.subject,
+            value: JSON.stringify(event),
           },
         ],
       });
 
-      set.status = 202;
-      return createdCloudEvent;
+      set.status = 201;
+      return group;
     },
     {
       body: GroupModel.CreateGroupBody,
@@ -38,18 +36,30 @@ export const groupRouter = new Elysia({ prefix: '/groups' })
 
   .post(
     '/:id/add-user',
-    ({ body, params, set }) => {
-      const updatedGroup = GroupService.addUserToGroup({
+    async ({ body, params, set, user, producer }) => {
+      const result = await GroupService.addUserToGroup({
         body: body,
         params: params,
+        executorId: user.id,
       });
-      if (updatedGroup === undefined) {
-        //TODO: catch prisma error P2025
+      if (result === undefined) {
         set.status = 404;
-      } else {
-        set.status = 202;
+        return { error: 'Not Found', message: 'Group not found' };
       }
-      return updatedGroup;
+
+      // Send the commit event through Kafka so the worker notifies all members
+      producer.send({
+        topic: KAFKA_TOPIC_TYPES.GROUP,
+        messages: [
+          {
+            key: result.event.subject,
+            value: JSON.stringify(result.event),
+          },
+        ],
+      });
+
+      set.status = 200;
+      return result.group;
     },
     {
       body: GroupModel.AddUserBody,
@@ -59,17 +69,30 @@ export const groupRouter = new Elysia({ prefix: '/groups' })
 
   .post(
     '/:id/remove-user',
-    ({ body, params, set }) => {
-      const updatedGroup = GroupService.removeUserFromGroup({
+    async ({ body, params, set, user, producer }) => {
+      const result = await GroupService.removeUserFromGroup({
         body: body,
         params: params,
+        executorId: user.id,
       });
-      if (updatedGroup === undefined) {
+      if (result === undefined) {
         set.status = 404;
-      } else {
-        set.status = 202;
+        return { error: 'Not Found', message: 'Group not found' };
       }
-      return updatedGroup;
+
+      // Send the commit event through Kafka so the worker notifies all members
+      producer.send({
+        topic: KAFKA_TOPIC_TYPES.GROUP,
+        messages: [
+          {
+            key: result.event.subject,
+            value: JSON.stringify(result.event),
+          },
+        ],
+      });
+
+      set.status = 200;
+      return result.group;
     },
     {
       body: GroupModel.RemoveUserBody,
@@ -96,12 +119,8 @@ export const groupRouter = new Elysia({ prefix: '/groups' })
         ],
       });
 
-      if (createdCloudEvent === undefined) {
-        set.status = 404;
-      } else {
-        set.status = 202;
-      }
-      return createdCloudEvent;
+      set.status = 200;
+      return { success: true };
     },
     {
       params: GroupModel.LeaveGroupParams,
@@ -109,31 +128,26 @@ export const groupRouter = new Elysia({ prefix: '/groups' })
     },
   )
 
-  .get('/', ({ user, set }) => {
-    const groups = GroupService.getAllGroups({
+  .get('/', ({ user }) => {
+    return GroupService.getAllGroups({
       executorId: user.id,
     });
-    set.status = 200;
-    return groups;
   })
 
-  .get('/:id', ({ user, params, set }) => {
-    const group = GroupService.getGroupById({
+  .get('/:id', async ({ user, params, set }) => {
+    const group = await GroupService.getGroupById({
       executorId: user.id,
       groupId: params.id,
     });
-    if (group === undefined) {
+    if (!group) {
       set.status = 404;
-    } else {
-      set.status = 200;
+      return { error: 'Not Found', message: 'Group not found' };
     }
     return group;
   })
 
-  .get('/sync', ({ user, set }) => {
-    const groups = GroupService.syncGroups({
+  .get('/sync', ({ user }) => {
+    return GroupService.syncGroups({
       executorId: user.id,
     });
-    set.status = 200;
-    return groups;
   });

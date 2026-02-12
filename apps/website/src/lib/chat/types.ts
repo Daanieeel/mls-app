@@ -10,10 +10,13 @@ export interface Message {
   id: string;
   chatId: string;
   senderId: string;
+  senderName?: string;
   content: string;
   timestamp: Date;
   status: MessageStatus;
   isOwn: boolean;
+  /** Whether this is a system notification (e.g. "User X added User Y") */
+  isSystem?: boolean;
 }
 
 export interface Chat {
@@ -49,12 +52,17 @@ const CryptoPayloadSchema = z
 
 // Base WebSocket message schema with common fields
 const BaseWebSocketMessageSchema = z.object({
-  group_id: z.string().uuid('Group ID must be a valid UUID'),
+  group_id: z.string().min(1, 'Group ID is required'), // Changed from UUID to support CUID
   payload: CryptoPayloadSchema,
-  seq_id: z.number().int().nonnegative().optional(),
+  seq_id: z.union([z.number(), z.string().transform(Number)]).optional(), // Accept number or string
   timestamp: z.coerce.date().optional(),
-  message_id: z.string().optional(),
-  sender_id: z.string().optional(),
+  message_id: z.string().nullable().optional(), // Allow null for WELCOME messages
+  sender_id: z.string().nullable().optional(), // Allow null for protocol messages
+  // System event metadata (passed through from the worker for UI notifications)
+  cloud_event_type: z.string().optional(),
+  actor_name: z.string().optional(),
+  target_name: z.string().optional(),
+  target_id: z.string().optional(),
 });
 
 /**

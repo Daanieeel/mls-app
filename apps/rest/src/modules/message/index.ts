@@ -1,22 +1,41 @@
 import { Elysia } from 'elysia';
-import { kafkaPlugin } from '../../utils/kafka';
 import { requireAuth } from '../auth/guard';
 import { MessageModel } from './model';
 import { MessageService } from './service';
 import { KAFKA_TOPIC_TYPES, type MinimalCloudEvent } from '@repo/utils';
+import { prisma } from '@repo/database';
 
 export const messageRouter = new Elysia({ prefix: '/messages' })
-  .use(kafkaPlugin())
   .use(requireAuth)
   .post(
     '/',
     async ({ body, user, set, producer }) => {
+      // Verify the sender is a member of the target group
+      const membership = await prisma.groupMember.findUnique({
+        where: {
+          userId_groupId: {
+            userId: user.id,
+            groupId: body.groupId,
+          },
+        },
+      });
+      if (!membership) {
+        set.status = 403;
+        return { error: 'Forbidden', message: 'You are not a member of this group' };
+      }
+
       const createdCloudEvent: MinimalCloudEvent = await MessageService.createMessage({
         body,
         userId: user.id,
       });
 
-      producer.send({
+      console.log('[REST] Sending message to Kafka:', {
+        topic: KAFKA_TOPIC_TYPES.MESSAGE,
+        groupId: body.groupId,
+        messageId: createdCloudEvent.id,
+      });
+
+      const result = await producer.send({
         topic: KAFKA_TOPIC_TYPES.MESSAGE,
         messages: [
           {
@@ -25,6 +44,8 @@ export const messageRouter = new Elysia({ prefix: '/messages' })
           },
         ],
       });
+
+      console.log('[REST] Message sent to Kafka successfully:', result);
 
       set.status = 202;
       return createdCloudEvent;

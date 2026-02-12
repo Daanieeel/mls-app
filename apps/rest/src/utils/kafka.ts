@@ -1,17 +1,47 @@
 import { env } from '@repo/env';
+import { KAFKA_TOPIC_TYPES } from '@repo/utils';
 import { Elysia } from 'elysia';
-import { Kafka } from 'kafkajs';
+import { Kafka, type Producer } from 'kafkajs';
 
 const kafka = new Kafka({
-  clientId: env.KAFKA_CLIENT_ID_WORKER,
-  brokers: [...env.KAFKA_BROKERS.split(',')],
+  clientId: env.KAFKA_CLIENT_ID_REST,
+  brokers: env.KAFKA_BROKERS.split(',').filter(Boolean),
+  enforceRequestTimeout: false,
+  requestTimeout: 30000,
+  connectionTimeout: 10000,
 });
 
-export const kafkaPlugin = async () => {
+let producerInstance: Producer | null = null;
+
+export const initKafka = async () => {
+  if (producerInstance) {
+    return producerInstance;
+  }
+
+  // Ensure topics exist before producing
+  const admin = kafka.admin();
+  await admin.connect();
+  const topics = Object.values(KAFKA_TOPIC_TYPES);
+  await admin.createTopics({
+    waitForLeaders: true,
+    topics: topics.map((topic) => ({ topic, numPartitions: 3 })),
+  });
+  await admin.disconnect();
+
   const producer = kafka.producer();
   await producer.connect();
+  producerInstance = producer;
 
-  return new Elysia({ name: 'kafka' }).decorate('producer', producer).onStop(async () => {
-    await producer.disconnect();
-  });
+  return producer;
+};
+
+export const kafkaPlugin = () => {
+  return new Elysia({ name: 'kafka' })
+    .decorate('producer', producerInstance as Producer)
+    .onStop(async () => {
+      if (producerInstance) {
+        await producerInstance.disconnect();
+        producerInstance = null;
+      }
+    });
 };

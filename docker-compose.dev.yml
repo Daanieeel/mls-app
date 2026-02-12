@@ -77,9 +77,10 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_NUM_PARTITIONS: 3
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       CLUSTER_ID: ${KAFKA_CLUSTER_ID}
     ports:
-      - "${KAFKA_PORT}:9092"
+      - "29092:29092"
     volumes:
       - dev_kafka_data:/var/lib/kafka/data
     healthcheck:

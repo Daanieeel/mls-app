@@ -82,13 +82,28 @@ export function MessageList({ messages, isLoading = false }: MessageListProps) {
           return (
             <div key={message.id}>
               {showDateSeparator && <MessageDateSeparator date={message.timestamp} />}
-              <ChatBubble
-                status={message.status}
-                timestamp={message.timestamp}
-                variant={message.isOwn ? 'own' : 'other'}
-              >
-                {message.content}
-              </ChatBubble>
+              {message.isSystem ? (
+                <div className="flex items-center justify-center py-1">
+                  <span className="rounded-full bg-muted px-3 py-1 text-center text-muted-foreground text-xs">
+                    {message.content}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  <ChatBubble
+                    status={message.status}
+                    timestamp={message.timestamp}
+                    variant={message.isOwn ? 'own' : 'other'}
+                  >
+                    {message.content}
+                  </ChatBubble>
+                  {!message.isOwn && (
+                    <div className="px-3 text-muted-foreground text-xs">
+                      {message.senderName || message.senderId}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
