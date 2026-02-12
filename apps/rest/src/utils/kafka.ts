@@ -3,7 +3,7 @@ import { Elysia } from 'elysia';
 import { Kafka } from 'kafkajs';
 
 const kafka = new Kafka({
-  clientId: 'my-elysia-app',
+  clientId: env.KAFKA_CLIENT_ID_WORKER,
   brokers: [...env.KAFKA_BROKERS.split(',')],
 });
 
