@@ -29,8 +29,8 @@ interface UseWebSocketOptions {
     timestamp: Date,
     seqId?: number,
   ) => void;
-  onTombstone?: (groupId: string, payload: string, messageId?: string) => void;
-  onEdit?: (groupId: string, payload: string, messageId?: string) => void;
+  onTombstone?: (groupId: string, payload: string, messageId?: string, senderId?: string) => void;
+  onEdit?: (groupId: string, payload: string, messageId?: string, senderId?: string) => void;
   onConnectionChange?: (connected: boolean) => void;
 }
 
@@ -142,12 +142,22 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
         case 'TOMBSTONE':
           console.log('[WebSocket] Received TOMBSTONE for group:', data.group_id);
           onMessageRef.current?.(data);
-          onTombstoneRef.current?.(data.group_id, data.payload, data.message_id);
+          onTombstoneRef.current?.(
+            data.group_id,
+            data.payload,
+            data.message_id,
+            data.sender_id ?? undefined,
+          );
           break;
         case 'EDIT':
           console.log('[WebSocket] Received EDIT for group:', data.group_id);
           onMessageRef.current?.(data);
-          onEditRef.current?.(data.group_id, data.payload, data.message_id);
+          onEditRef.current?.(
+            data.group_id,
+            data.payload,
+            data.message_id,
+            data.sender_id ?? undefined,
+          );
           break;
         case 'connection:established':
           console.log('[WebSocket] Connection established');

@@ -22,6 +22,7 @@ export function ChatContainer() {
   const { getAccessToken, user } = useAuth();
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
 
   const {
     groups,
@@ -32,6 +33,8 @@ export function ChatContainer() {
     addMessage,
     updateMessage,
     deleteMessage,
+    editMessageOnServer,
+    deleteMessageOnServer,
     markAsRead,
     refreshGroups,
   } = useChatData({ selectedChatId });
@@ -192,8 +195,14 @@ export function ChatContainer() {
   );
 
   const handleEdit = useCallback(
-    async (groupId: string, payload: string, messageId?: string) => {
+    async (groupId: string, payload: string, messageId?: string, senderId?: string) => {
       if (!messageId) return;
+
+      // Skip our own edits — already applied optimistically
+      if (senderId && user?.id && senderId === user.id) {
+        console.log('[ChatContainer] Skipping own EDIT for message:', messageId);
+        return;
+      }
 
       console.log('[ChatContainer] Handling EDIT:', {
         groupId,
@@ -223,15 +232,20 @@ export function ChatContainer() {
         content,
       });
     },
-    [updateMessage],
+    [updateMessage, user?.id],
   );
 
   const handleTombstone = useCallback(
-    (_groupId: string, _payloadd: string, messageId?: string) => {
+    (_groupId: string, _payloadd: string, messageId?: string, senderId?: string) => {
       if (!messageId) return;
+      // Skip our own deletes — already applied optimistically
+      if (senderId && user?.id && senderId === user.id) {
+        console.log('[ChatContainer] Skipping own TOMBSTONE for message:', messageId);
+        return;
+      }
       deleteMessage({ messageId });
     },
-    [deleteMessage],
+    [deleteMessage, user?.id],
   );
 
   const handleWelcome = useCallback(
@@ -363,9 +377,37 @@ export function ChatContainer() {
     [selectedChatId, sendMessage],
   );
 
+  /** User clicks "Edit" on one of their own messages. */
+  const handleStartEdit = useCallback((message: Message) => {
+    setEditingMessageId(message.id);
+  }, []);
+
+  /** User submits the edited content. */
+  const handleEditMessage = useCallback(
+    (messageId: string, groupId: string, newContent: string) => {
+      editMessageOnServer(messageId, groupId, newContent);
+      setEditingMessageId(null);
+    },
+    [editMessageOnServer],
+  );
+
+  /** User cancels the edit. */
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessageId(null);
+  }, []);
+
+  /** User confirms message deletion. */
+  const handleDeleteMessage = useCallback(
+    (messageId: string) => {
+      deleteMessageOnServer(messageId);
+    },
+    [deleteMessageOnServer],
+  );
+
   const handleSelectChat = useCallback(
     (chatId: string) => {
       setSelectedChatId(chatId);
+      setEditingMessageId(null);
       // Mark the chat as read when selected
       markAsRead(chatId);
     },
@@ -428,7 +470,15 @@ export function ChatContainer() {
         {/* Messages */}
         {selectedChatId ? (
           <>
-            <MessageList isLoading={isLoadingMessages} messages={messages} />
+            <MessageList
+              editingMessageId={editingMessageId}
+              isLoading={isLoadingMessages}
+              messages={messages}
+              onCancelEdit={handleCancelEdit}
+              onDeleteMessage={handleDeleteMessage}
+              onStartEdit={handleStartEdit}
+              onSubmitEdit={handleEditMessage}
+            />
             <MessageInput
               disabled={inputDisabled}
               onSendMessage={handleSendMessage}

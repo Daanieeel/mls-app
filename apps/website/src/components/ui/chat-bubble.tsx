@@ -5,7 +5,7 @@ import type * as React from 'react';
 
 import { cn } from '@/lib/utils';
 
-const chatBubbleVariants = cva('relative max-w-[80%] break-words rounded-2xl px-4 py-2 text-sm', {
+const chatBubbleVariants = cva('relative break-words rounded-2xl px-4 py-2 text-sm', {
   variants: {
     variant: {
       own: 'rounded-br-md bg-primary text-primary-foreground',
@@ -51,7 +51,10 @@ function ChatBubble({
 
   return (
     <div
-      className={cn('flex flex-col gap-1', variant === 'own' ? 'items-end' : 'items-start')}
+      className={cn(
+        'flex min-w-0 max-w-[80%] flex-col gap-1',
+        variant === 'own' ? 'items-end' : 'items-start',
+      )}
       data-slot="chat-bubble"
     >
       <div className={cn(chatBubbleVariants({ variant, status, className }))} {...props}>

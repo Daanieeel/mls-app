@@ -84,18 +84,26 @@ export abstract class MessageService {
       payloadPreview: body.payload.substring(0, 80),
     });
 
+    // Verify ownership: only the original sender can edit a message
+    const existing = await prisma.globalMessage.findUnique({
+      where: { id: params.id },
+      select: { senderId: true },
+    });
+    if (!existing) {
+      throw new Error('Message not found');
+    }
+    if (existing.senderId !== userId) {
+      throw new Error('You can only edit your own messages');
+    }
+
     const updatedMessage = await prisma.globalMessage.update({
       where: {
         id: params.id,
       },
       data: {
-        ...body,
-        sender: {
-          connect: {
-            id: userId,
-          },
-        },
         payload: Buffer.from(body.payload, 'utf-8'),
+        nonce: body.nonce,
+        type: body.type,
       },
     });
 
@@ -121,12 +129,26 @@ export abstract class MessageService {
 
   static async deleteMessage({
     params,
+    userId,
   }: {
     params: (typeof MessageModel.DeleteMessageParams)['static'];
+    userId: string;
   }) {
+    // Verify ownership: only the original sender can delete a message
+    const existing = await prisma.globalMessage.findUnique({
+      where: { id: params.id },
+      select: { senderId: true },
+    });
+    if (!existing) {
+      throw new Error('Message not found');
+    }
+    if (existing.senderId !== userId) {
+      throw new Error('You can only delete your own messages');
+    }
+
     const deletedMessage = await prisma.globalMessage.delete({
       where: {
-        ...params,
+        id: params.id,
       },
     });
     const payloadString = Buffer.from(deletedMessage.payload).toString('utf-8');

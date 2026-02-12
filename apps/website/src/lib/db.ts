@@ -27,6 +27,8 @@ export interface LocalMessage {
   isOwn: boolean;
   /** Whether this is a system notification (e.g. "User X added User Y") */
   isSystem?: boolean;
+  /** Whether this message has been edited */
+  isEdited?: boolean;
 }
 
 export class MyDexie extends Dexie {
@@ -52,6 +54,12 @@ export class MyDexie extends Dexie {
       groups: '&id, name, createdById, createdAt, updatedAt',
       groupReadStates: '&groupId, lastReadAt',
       localMessages: '&id, groupId, senderId, createdAt, isOwn, isSystem',
+    });
+    this.version(4).stores({
+      globalMessages: '&id, &nonce, senderId, createdAt, updatedAt',
+      groups: '&id, name, createdById, createdAt, updatedAt',
+      groupReadStates: '&groupId, lastReadAt',
+      localMessages: '&id, groupId, senderId, createdAt, isOwn, isSystem, isEdited',
     });
   }
 }

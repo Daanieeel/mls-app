@@ -144,13 +144,22 @@ async function run() {
         seq_id: number;
       };
 
+      // Determine the inbox item type based on the CloudEvent type.
+      // MESSAGE_UPDATED → EDIT, MESSAGE_DELETED → TOMBSTONE, otherwise use the original type.
+      let inboxItemType: string = cloudEvent.data.type;
+      if (cloudEvent.type === CLOUD_EVENT_TYPES.MESSAGE_UPDATED) {
+        inboxItemType = 'EDIT';
+      } else if (cloudEvent.type === CLOUD_EVENT_TYPES.MESSAGE_DELETED) {
+        inboxItemType = 'TOMBSTONE';
+      }
+
       const preparedInboxItems: PreparedInboxItem[] = [];
 
       for (const recipientId of recipientIds) {
         // Store the payload string as UTF-8 bytes in Prisma's Bytes field.
         const payloadBuffer = Buffer.from(cloudEvent.data.payload, 'utf-8');
         const temp: PreparedInboxItem = {
-          type: cloudEvent.data.type,
+          type: inboxItemType,
           nonce: randomUUID(), // Generate unique nonce for each inbox item
           payload: payloadBuffer,
           messageId: cloudEvent.data.id || undefined, // Optional: only set if GlobalMessage exists

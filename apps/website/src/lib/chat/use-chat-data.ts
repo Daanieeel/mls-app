@@ -37,6 +37,8 @@ interface UseChatDataReturn {
   addMessage: (message: Message) => void;
   updateMessage: (payload: UpdateMessagePayload) => void;
   deleteMessage: (payload: DeleteMessagePayload) => void;
+  editMessageOnServer: (messageId: string, groupId: string, newContent: string) => Promise<void>;
+  deleteMessageOnServer: (messageId: string) => Promise<void>;
   markAsRead: (groupId: string) => Promise<void>;
   refreshGroups: () => Promise<void>;
 }
@@ -62,6 +64,7 @@ export function useChatData({ selectedChatId }: UseChatDataOptions): UseChatData
         status: 'sent' as const,
         isOwn: msg.isOwn,
         isSystem: msg.isSystem,
+        isEdited: msg.isEdited,
       })),
     [localMessages],
   );
@@ -152,12 +155,24 @@ export function useChatData({ selectedChatId }: UseChatDataOptions): UseChatData
           return;
         }
 
-        // Update the optimistic message with the server-assigned id
-        if (data && typeof data === 'object' && 'id' in data) {
+        // Update the optimistic message with the server-assigned id.
+        // The response is a CloudEvent — `data.id` is the CloudEvent UUID,
+        // while `data.data.id` is the actual Prisma message ID used by the DB.
+        const messageData =
+          data && typeof data === 'object' && 'data' in data
+            ? (data as { data?: { id?: string } }).data
+            : null;
+        const serverId =
+          messageData?.id ??
+          (data && typeof data === 'object' && 'id' in data
+            ? String((data as { id: unknown }).id)
+            : null);
+
+        if (serverId) {
           await dexieDb.localMessages.delete(tempId);
           await dexieDb.localMessages.put({
             ...newMessage,
-            id: String(data.id),
+            id: serverId,
           });
         }
       } catch (err) {
@@ -177,19 +192,65 @@ export function useChatData({ selectedChatId }: UseChatDataOptions): UseChatData
       createdAt: message.timestamp,
       isOwn: message.isOwn,
       isSystem: message.isSystem,
+      isEdited: message.isEdited,
     };
     dexieDb.localMessages.put(localMessage).catch(console.error);
   }, []);
 
   const updateMessage = useCallback((payload: UpdateMessagePayload) => {
     dexieDb.localMessages
-      .update(payload.messageId, { content: payload.content })
+      .update(payload.messageId, { content: payload.content, isEdited: true })
       .catch(console.error);
   }, []);
 
   const deleteMessage = useCallback((payload: DeleteMessagePayload) => {
     dexieDb.localMessages.delete(payload.messageId).catch(console.error);
   }, []);
+
+  const editMessageOnServer = useCallback(
+    async (messageId: string, groupId: string, newContent: string) => {
+      // Optimistically update local DB
+      await dexieDb.localMessages
+        .update(messageId, { content: newContent, isEdited: true })
+        .catch(console.error);
+
+      try {
+        const encryptedPayload = await encryptOutgoingMessagePayload(groupId, newContent);
+
+        const { error } = await api.messages({ id: messageId }).patch({
+          payload: encryptedPayload,
+          type: 'EDIT',
+          nonce: crypto.randomUUID(),
+          groupId,
+        });
+
+        if (error) {
+          console.error('[useChatData] Failed to edit message on server:', error);
+        }
+      } catch (err) {
+        console.error('[useChatData] Failed to edit message:', err);
+      }
+    },
+    [api],
+  );
+
+  const deleteMessageOnServer = useCallback(
+    async (messageId: string) => {
+      // Optimistically remove from local DB
+      await dexieDb.localMessages.delete(messageId).catch(console.error);
+
+      try {
+        const { error } = await api.messages({ id: messageId }).delete();
+
+        if (error) {
+          console.error('[useChatData] Failed to delete message on server:', error);
+        }
+      } catch (err) {
+        console.error('[useChatData] Failed to delete message:', err);
+      }
+    },
+    [api],
+  );
 
   const markAsRead = useCallback(async (groupId: string) => {
     await markGroupAsRead(groupId);
@@ -206,6 +267,8 @@ export function useChatData({ selectedChatId }: UseChatDataOptions): UseChatData
     addMessage,
     updateMessage,
     deleteMessage,
+    editMessageOnServer,
+    deleteMessageOnServer,
     markAsRead,
     refreshGroups,
   };

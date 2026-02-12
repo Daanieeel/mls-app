@@ -17,6 +17,8 @@ export interface Message {
   isOwn: boolean;
   /** Whether this is a system notification (e.g. "User X added User Y") */
   isSystem?: boolean;
+  /** Whether this message has been edited */
+  isEdited?: boolean;
 }
 
 export interface Chat {
