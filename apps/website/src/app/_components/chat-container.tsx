@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { Notification } from '@/components/notification';
 import { useApi, useAuth } from '@/lib/auth';
 import {
   decryptIncomingMessagePayload,
@@ -190,8 +192,37 @@ export function ChatContainer() {
         isOwn: false,
       };
       addMessage(message);
+
+      // Show notification if the message is not from the currently selected chat
+      if (groupId !== selectedChatId) {
+        const group = groups.find((g) => g.id === groupId);
+        toast.custom(
+          (t) => (
+            <Notification
+              content={content}
+              groupName={group?.name}
+              onClick={() => {
+                toast.dismiss(t);
+                setSelectedChatId(groupId);
+                // Scroll to message after a brief delay to ensure chat is loaded
+                setTimeout(() => {
+                  const messageElement = document.getElementById(`message-${messageId}`);
+                  messageElement?.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center',
+                  });
+                }, 100);
+              }}
+              senderName={senderName}
+              title={senderName || 'Someone'}
+              type="message"
+            />
+          ),
+          { duration: 5000 },
+        );
+      }
     },
-    [addMessage, user?.id, getAccessToken],
+    [addMessage, user?.id, getAccessToken, selectedChatId, groups],
   );
 
   const handleEdit = useCallback(
@@ -231,21 +262,105 @@ export function ChatContainer() {
         messageId,
         content,
       });
+
+      // Show notification for edited message
+      if (groupId !== selectedChatId) {
+        const group = groups.find((g) => g.id === groupId);
+        toast.custom(
+          (t) => (
+            <Notification
+              content={content}
+              groupName={group?.name}
+              onClick={() => {
+                toast.dismiss(t);
+                setSelectedChatId(groupId);
+                setTimeout(() => {
+                  const messageElement = document.getElementById(`message-${messageId}`);
+                  messageElement?.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center',
+                  });
+                }, 100);
+              }}
+              title="Message edited"
+              type="edit"
+            />
+          ),
+          { duration: 5000 },
+        );
+      }
     },
-    [updateMessage, user?.id],
+    [updateMessage, user?.id, selectedChatId, groups],
   );
 
   const handleTombstone = useCallback(
-    (_groupId: string, _payloadd: string, messageId?: string, senderId?: string) => {
-      if (!messageId) return;
+    async (_groupId: string, _payloadd: string, messageId?: string, senderId?: string) => {
+      console.log('[ChatContainer] Received TOMBSTONE:', {
+        groupId: _groupId,
+        messageId,
+        senderId,
+        currentUserId: user?.id,
+        isOwnDelete: senderId && user?.id && senderId === user.id,
+      });
+
+      if (!messageId) {
+        console.warn('[ChatContainer] TOMBSTONE received without messageId');
+        return;
+      }
+
+      // Add a system message about the deletion (for both sender and receivers)
+      let senderName = 'Someone';
+      if (senderId) {
+        if (user?.id && senderId === user.id) {
+          senderName = 'You';
+        } else {
+          try {
+            const response = await fetch(`http://localhost:3001/users/${senderId}`, {
+              headers: {
+                Authorization: `Bearer ${getAccessToken()}`,
+              },
+            });
+            if (response.ok) {
+              const userData = await response.json();
+              senderName = userData.name || userData.email || 'Someone';
+            }
+          } catch (err) {
+            console.warn('[ChatContainer] Failed to fetch sender name for TOMBSTONE:', err);
+          }
+        }
+      }
+      addSystemMessage(_groupId, `${senderName} deleted a message`);
+
       // Skip our own deletes — already applied optimistically
       if (senderId && user?.id && senderId === user.id) {
         console.log('[ChatContainer] Skipping own TOMBSTONE for message:', messageId);
         return;
       }
+
+      console.log('[ChatContainer] Processing TOMBSTONE - deleting message:', messageId);
       deleteMessage({ messageId });
+
+      // Show notification for deleted message
+      if (_groupId !== selectedChatId) {
+        const group = groups.find((g) => g.id === _groupId);
+        toast.custom(
+          (t) => (
+            <Notification
+              content="A message was deleted"
+              groupName={group?.name}
+              onClick={() => {
+                toast.dismiss(t);
+                setSelectedChatId(_groupId);
+              }}
+              title="Message deleted"
+              type="delete"
+            />
+          ),
+          { duration: 5000 },
+        );
+      }
     },
-    [deleteMessage, user?.id],
+    [deleteMessage, user?.id, selectedChatId, groups, addSystemMessage, getAccessToken],
   );
 
   const handleWelcome = useCallback(
@@ -270,11 +385,31 @@ export function ChatContainer() {
         }
 
         console.log('[ChatContainer] Groups refreshed after WELCOME');
+
+        // Show notification for group event
+        const group = groups.find((g) => g.id === groupId);
+        if (text && groupId !== selectedChatId) {
+          toast.custom(
+            (t) => (
+              <Notification
+                content={text}
+                groupName={group?.name}
+                onClick={() => {
+                  toast.dismiss(t);
+                  setSelectedChatId(groupId);
+                }}
+                title="Group update"
+                type="group"
+              />
+            ),
+            { duration: 5000 },
+          );
+        }
       } catch (err) {
         console.error('[ChatContainer] Failed to refresh groups after WELCOME:', err);
       }
     },
-    [refreshGroups, user?.id, buildSystemNotification, addSystemMessage],
+    [refreshGroups, user?.id, buildSystemNotification, addSystemMessage, groups, selectedChatId],
   );
 
   const handleCommit = useCallback(
@@ -289,8 +424,28 @@ export function ChatContainer() {
       if (text) {
         addSystemMessage(groupId, text);
       }
+
+      // Show notification for group event
+      const group = groups.find((g) => g.id === groupId);
+      if (text && groupId !== selectedChatId) {
+        toast.custom(
+          (t) => (
+            <Notification
+              content={text}
+              groupName={group?.name}
+              onClick={() => {
+                toast.dismiss(t);
+                setSelectedChatId(groupId);
+              }}
+              title="Group update"
+              type="group"
+            />
+          ),
+          { duration: 5000 },
+        );
+      }
     },
-    [refreshGroups, buildSystemNotification, addSystemMessage],
+    [refreshGroups, buildSystemNotification, addSystemMessage, groups, selectedChatId],
   );
 
   // --- Sync handler for syncing when coming online ---

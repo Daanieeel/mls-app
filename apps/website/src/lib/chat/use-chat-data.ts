@@ -204,7 +204,15 @@ export function useChatData({ selectedChatId }: UseChatDataOptions): UseChatData
   }, []);
 
   const deleteMessage = useCallback((payload: DeleteMessagePayload) => {
-    dexieDb.localMessages.delete(payload.messageId).catch(console.error);
+    console.log('[useChatData] deleteMessage called with:', payload);
+    dexieDb.localMessages
+      .delete(payload.messageId)
+      .then(() => {
+        console.log('[useChatData] Successfully deleted message from Dexie:', payload.messageId);
+      })
+      .catch((err) => {
+        console.error('[useChatData] Failed to delete message from Dexie:', err);
+      });
   }, []);
 
   const editMessageOnServer = useCallback(

@@ -105,7 +105,7 @@ export const ApplicationMessageSchema = BaseWebSocketMessageSchema.extend({
  */
 export const TombstoneMessageSchema = BaseWebSocketMessageSchema.extend({
   type: z.literal('TOMBSTONE'),
-  message_id: z.string().optional(),
+  message_id: z.string().nullable().optional(),
 });
 
 /**
@@ -114,7 +114,7 @@ export const TombstoneMessageSchema = BaseWebSocketMessageSchema.extend({
  */
 export const EditMessageSchema = BaseWebSocketMessageSchema.extend({
   type: z.literal('EDIT'),
-  message_id: z.string().optional(),
+  message_id: z.string().nullable().optional(),
 });
 
 /**

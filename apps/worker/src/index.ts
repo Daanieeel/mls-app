@@ -162,7 +162,8 @@ async function run() {
           type: inboxItemType,
           nonce: randomUUID(), // Generate unique nonce for each inbox item
           payload: payloadBuffer,
-          messageId: cloudEvent.data.id || undefined, // Optional: only set if GlobalMessage exists
+          // For TOMBSTONE events, don't set messageId since the message is already deleted from DB
+          messageId: inboxItemType === 'TOMBSTONE' ? undefined : cloudEvent.data.id || undefined,
           receiverId: recipientId,
           groupId: groupId ?? '', // Store group ID directly for sync
           senderId: cloudEvent.data.senderId || undefined, // Store sender ID for sync
@@ -207,7 +208,12 @@ async function run() {
             group_id: groupId,
             payload: payloadString,
             seq_id: Number(currentItem.seq_id),
-            message_id: currentItem.messageId,
+            // For TOMBSTONE/EDIT, use the original message ID from CloudEvent since
+            // it's not stored in DB due to FK constraint (message is already deleted)
+            message_id:
+              currentItem.type === 'TOMBSTONE' || currentItem.type === 'EDIT'
+                ? cloudEvent.data.id
+                : currentItem.messageId,
             sender_id: cloudEvent.data.senderId,
             receiver_id: currentItem.receiverId,
             timestamp: currentItem.createdAt,

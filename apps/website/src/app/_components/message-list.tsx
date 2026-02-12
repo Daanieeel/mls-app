@@ -151,17 +151,20 @@ function MessageListItem({
     <div>
       {showDateSeparator && <MessageDateSeparator date={message.timestamp} />}
       {message.isSystem ? (
-        <div className="flex items-center justify-center py-1">
+        <div className="flex items-center justify-center py-1" id={`message-${message.id}`}>
           <span className="rounded-full bg-muted px-3 py-1 text-center text-muted-foreground text-xs">
             {message.content}
           </span>
         </div>
       ) : isEditing && onSubmitEdit && onCancelEdit ? (
-        <div className={`flex ${message.isOwn ? 'justify-end' : 'justify-start'}`}>
+        <div
+          className={`flex ${message.isOwn ? 'justify-end' : 'justify-start'}`}
+          id={`message-${message.id}`}
+        >
           <InlineEditForm message={message} onCancel={onCancelEdit} onSubmit={onSubmitEdit} />
         </div>
       ) : (
-        <div className="group/message relative flex flex-col gap-1">
+        <div className="group/message relative flex flex-col gap-1" id={`message-${message.id}`}>
           <div
             className={`flex items-center gap-1 ${message.isOwn ? 'justify-end' : 'justify-start'}`}
           >
