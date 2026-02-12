@@ -95,7 +95,7 @@ function InlineEditForm({
     <div className="flex max-w-[80%] flex-col gap-1.5">
       <form className="flex items-end gap-1.5" onSubmit={handleSubmit}>
         <Textarea
-          className="max-h-32 min-h-10 resize-none rounded-2xl bg-primary/10 text-sm ring-2 ring-primary/30"
+          className="max-h-32 min-h-10 resize-none rounded-md bg-primary/10 text-sm ring-2 ring-primary/30"
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Edit your message..."
@@ -121,6 +121,68 @@ function InlineEditForm({
       <span className="px-1 text-[10px] text-muted-foreground">
         Press Escape to cancel · Enter to save
       </span>
+    </div>
+  );
+}
+
+interface MessageListItemProps {
+  message: Message;
+  previousMessage?: Message;
+  editingMessageId?: string | null;
+  onStartEdit?: (message: Message) => void;
+  onSubmitEdit?: (messageId: string, groupId: string, newContent: string) => void;
+  onCancelEdit?: () => void;
+  onDeleteMessage?: (messageId: string) => void;
+}
+
+function MessageListItem({
+  message,
+  previousMessage,
+  editingMessageId,
+  onStartEdit,
+  onSubmitEdit,
+  onCancelEdit,
+  onDeleteMessage,
+}: MessageListItemProps) {
+  const showDateSeparator = shouldShowDateSeparator(message, previousMessage);
+  const isEditing = editingMessageId === message.id;
+
+  return (
+    <div>
+      {showDateSeparator && <MessageDateSeparator date={message.timestamp} />}
+      {message.isSystem ? (
+        <div className="flex items-center justify-center py-1">
+          <span className="rounded-full bg-muted px-3 py-1 text-center text-muted-foreground text-xs">
+            {message.content}
+          </span>
+        </div>
+      ) : isEditing && onSubmitEdit && onCancelEdit ? (
+        <div className={`flex ${message.isOwn ? 'justify-end' : 'justify-start'}`}>
+          <InlineEditForm message={message} onCancel={onCancelEdit} onSubmit={onSubmitEdit} />
+        </div>
+      ) : (
+        <div className="group/message relative flex flex-col gap-1">
+          <div
+            className={`flex items-center gap-1 ${message.isOwn ? 'justify-end' : 'justify-start'}`}
+          >
+            {message.isOwn && onStartEdit && onDeleteMessage && (
+              <MessageActions
+                onDelete={() => onDeleteMessage(message.id)}
+                onEdit={() => onStartEdit(message)}
+              />
+            )}
+            <ChatBubble
+              authorName={!message.isOwn ? message.senderName || message.senderId : undefined}
+              status={message.status}
+              timestamp={message.timestamp}
+              variant={message.isOwn ? 'own' : 'other'}
+            >
+              {message.content}
+              {message.isEdited && <span className="ml-1 text-[10px] opacity-60">(edited)</span>}
+            </ChatBubble>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -168,59 +230,18 @@ export function MessageList({
   return (
     <ScrollArea className="flex-1 px-4 md:px-6">
       <div className="flex flex-col gap-3 py-4">
-        {messages.map((message, index) => {
-          const previousMessage = messages[index - 1];
-          const showDateSeparator = shouldShowDateSeparator(message, previousMessage);
-
-          return (
-            <div key={message.id}>
-              {showDateSeparator && <MessageDateSeparator date={message.timestamp} />}
-              {message.isSystem ? (
-                <div className="flex items-center justify-center py-1">
-                  <span className="rounded-full bg-muted px-3 py-1 text-center text-muted-foreground text-xs">
-                    {message.content}
-                  </span>
-                </div>
-              ) : editingMessageId === message.id && onSubmitEdit && onCancelEdit ? (
-                <div className={`flex ${message.isOwn ? 'justify-end' : 'justify-start'}`}>
-                  <InlineEditForm
-                    message={message}
-                    onCancel={onCancelEdit}
-                    onSubmit={onSubmitEdit}
-                  />
-                </div>
-              ) : (
-                <div className="group/message relative flex flex-col gap-1">
-                  <div
-                    className={`flex items-center gap-1 ${message.isOwn ? 'justify-end' : 'justify-start'}`}
-                  >
-                    {message.isOwn && onStartEdit && onDeleteMessage && (
-                      <MessageActions
-                        onDelete={() => onDeleteMessage(message.id)}
-                        onEdit={() => onStartEdit(message)}
-                      />
-                    )}
-                    <ChatBubble
-                      status={message.status}
-                      timestamp={message.timestamp}
-                      variant={message.isOwn ? 'own' : 'other'}
-                    >
-                      {message.content}
-                      {message.isEdited && (
-                        <span className="ml-1 text-[10px] opacity-60">(edited)</span>
-                      )}
-                    </ChatBubble>
-                  </div>
-                  {!message.isOwn && (
-                    <div className="px-3 text-muted-foreground text-xs">
-                      {message.senderName || message.senderId}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {messages.map((message, index) => (
+          <MessageListItem
+            editingMessageId={editingMessageId}
+            key={message.id}
+            message={message}
+            onCancelEdit={onCancelEdit}
+            onDeleteMessage={onDeleteMessage}
+            onStartEdit={onStartEdit}
+            onSubmitEdit={onSubmitEdit}
+            previousMessage={messages[index - 1]}
+          />
+        ))}
         <div ref={bottomRef} />
       </div>
     </ScrollArea>

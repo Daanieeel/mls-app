@@ -30,6 +30,7 @@ interface ChatBubbleProps
     VariantProps<typeof chatBubbleVariants> {
   timestamp?: Date;
   showTimestamp?: boolean;
+  authorName?: string;
 }
 
 function ChatBubble({
@@ -38,6 +39,7 @@ function ChatBubble({
   status,
   timestamp,
   showTimestamp = true,
+  authorName,
   children,
   ...props
 }: ChatBubbleProps) {
@@ -60,8 +62,12 @@ function ChatBubble({
       <div className={cn(chatBubbleVariants({ variant, status, className }))} {...props}>
         {children}
       </div>
-      {showTimestamp && formattedTime && (
-        <span className="px-1 text-[10px] text-muted-foreground">{formattedTime}</span>
+      {showTimestamp && (formattedTime || authorName) && (
+        <div className="flex items-center gap-1 px-1 text-[10px] text-muted-foreground">
+          {authorName && <span>{authorName}</span>}
+          {authorName && formattedTime && <span className="size-0.5 rounded-full bg-current" />}
+          {formattedTime && <span>{formattedTime}</span>}
+        </div>
       )}
     </div>
   );
