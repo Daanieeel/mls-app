@@ -1,24 +1,9 @@
-"use client";
-
-import { useCallback, useMemo } from "react";
-import {
-	dexieDb,
-	type LocalMessage,
-	markGroupAsRead,
-	useGroupMessages,
-	useGroupsWithMetadata,
-} from "@/lib/db";
-import type { GroupWithMetadata } from "@/lib/types";
-import { useSession } from "@/server/better-auth/client";
-import type { Message } from "./types";
-
-interface UpdateMessagePayload {
-	messageId: string;
-	content: string;
-}
+'use client';
 
 import { useCallback, useEffect, useMemo } from 'react';
-import { useApi, useAuth } from '@/lib/auth';
+import { useAuth } from '@/lib/auth';
+import { useApi } from '@/lib/auth/use-api';
+import { encryptOutgoingMessagePayload } from '@/lib/chat/mls';
 import {
   dexieDb,
   type LocalMessage,
@@ -27,8 +12,12 @@ import {
   useGroupsWithMetadata,
 } from '@/lib/db';
 import type { GroupWithMetadata } from '@/lib/types';
-import { encryptOutgoingMessagePayload } from './mls';
 import type { Message } from './types';
+
+interface UpdateMessagePayload {
+  messageId: string;
+  content: string;
+}
 
 interface UpdateMessagePayload {
   messageId: string;
@@ -40,7 +29,7 @@ interface DeleteMessagePayload {
 }
 
 interface UseChatDataOptions {
-	selectedChatId: string | null;
+  selectedChatId: string | null;
 }
 
 interface UseChatDataReturn {
