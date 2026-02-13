@@ -35,11 +35,13 @@ model UserInboxItem {
   payload Bytes
   type    String
   nonce   String @unique
+  groupId String // Group the message belongs to (for sync without message relation)
 
-  receiver   User          @relation(fields: [receiverId], references: [id])
+  receiver   User           @relation(fields: [receiverId], references: [id])
   receiverId String
-  message    GlobalMessage @relation(fields: [messageId], references: [id])
-  messageId  String
+  message    GlobalMessage? @relation(fields: [messageId], references: [id])
+  messageId  String?
+  senderId   String? // Sender ID (for sync without message relation)
 
   readAt      DateTime?
   deliveredAt DateTime?
@@ -48,6 +50,7 @@ model UserInboxItem {
 
   @@index([receiverId, seq_id])
   @@index([messageId])
+  @@index([groupId])
 }
 
 model GlobalMessage {
@@ -59,6 +62,8 @@ model GlobalMessage {
   sender             User            @relation(fields: [senderId], references: [id])
   senderId           String
   receiverInboxItems UserInboxItem[]
+  group              Group           @relation(fields: [groupId], references: [id])
+  groupId            String
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -86,9 +91,10 @@ model Group {
   id   String @id @default(cuid())
   name String
 
-  createdBy   User          @relation("UserCreatedGroups", fields: [createdById], references: [id])
-  createdById String
-  members     GroupMember[]
+  createdBy      User            @relation("UserCreatedGroups", fields: [createdById], references: [id])
+  createdById    String
+  members        GroupMember[]
+  globalMessages GlobalMessage[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

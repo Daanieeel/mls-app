@@ -10,10 +10,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@repo/env": "*",
     "@t3-oss/env-core": "^0.13.10",
     "elysia": "1.1.17",
-    "zod": "^4.3.6",
-    "@repo/env": "*"
+    "redis": "^5.10.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/bun": "1.1.10",

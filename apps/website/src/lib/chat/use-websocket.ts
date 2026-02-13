@@ -2,32 +2,45 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import z from 'zod';
-import type { MLSWebSocketMessage, WebSocketEventType, WebSocketMessage } from './types';
+import type { MLSWebSocketMessage } from './types';
 import { WebSocketMessageSchema } from './types';
 
 const WEBSOCKET_URL = 'ws://localhost:3002/socket';
 const RECONNECT_INTERVAL = 3000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 
+export interface SystemEventMeta {
+  cloudEventType?: string;
+  actorName?: string;
+  targetName?: string;
+  targetId?: string;
+}
+
 interface UseWebSocketOptions {
+  accessToken: string | null;
   onMessage?: (message: MLSWebSocketMessage) => void;
-  onWelcome?: (groupId: string, payload: string) => void;
-  onCommit?: (groupId: string, payload: string) => void;
-  onApplicationMessage?: (groupId: string, payload: string, seqId?: number) => void;
-  onTombstone?: (groupId: string, payload: string, messageId?: string) => void;
-  onEdit?: (groupId: string, payload: string, messageId?: string) => void;
+  onWelcome?: (groupId: string, payload: string, meta?: SystemEventMeta) => void;
+  onCommit?: (groupId: string, payload: string, meta?: SystemEventMeta) => void;
+  onApplicationMessage?: (
+    messageId: string,
+    groupId: string,
+    senderId: string,
+    payload: string,
+    timestamp: Date,
+    seqId?: number,
+  ) => void;
+  onTombstone?: (groupId: string, payload: string, messageId?: string, senderId?: string) => void;
+  onEdit?: (groupId: string, payload: string, messageId?: string, senderId?: string) => void;
   onConnectionChange?: (connected: boolean) => void;
 }
 
 interface UseWebSocketReturn {
   isConnected: boolean;
-  sendMessage: (groupId: string, encryptedPayload: string, nonce?: string) => void;
-  updateMessage: (groupId: string, messageId: string, encryptedPayload: string) => void;
-  deleteMessage: (groupId: string, messageId: string) => void;
 }
 
-export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketReturn {
+export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
   const {
+    accessToken,
     onMessage,
     onWelcome,
     onCommit,
@@ -41,176 +54,217 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const accessTokenRef = useRef(accessToken);
+  const intentionalCloseRef = useRef(false);
 
-  const handleMessage = useCallback(
-    (event: MessageEvent) => {
-      try {
-        const rawData = JSON.parse(event.data);
-        const result = WebSocketMessageSchema.safeParse(rawData);
+  // Keep the token ref up to date without causing reconnections
+  useEffect(() => {
+    accessTokenRef.current = accessToken;
+  }, [accessToken]);
 
-        if (!result.success) {
-          console.error('[WebSocket] Invalid message format:', z.treeifyError(result.error));
-          return;
-        }
+  // Store callbacks in refs to avoid recreating connect on every render
+  const onMessageRef = useRef(onMessage);
+  const onWelcomeRef = useRef(onWelcome);
+  const onCommitRef = useRef(onCommit);
+  const onApplicationMessageRef = useRef(onApplicationMessage);
+  const onTombstoneRef = useRef(onTombstone);
+  const onEditRef = useRef(onEdit);
+  const onConnectionChangeRef = useRef(onConnectionChange);
 
-        const { data } = result;
+  useEffect(() => {
+    onMessageRef.current = onMessage;
+    onWelcomeRef.current = onWelcome;
+    onCommitRef.current = onCommit;
+    onApplicationMessageRef.current = onApplicationMessage;
+    onTombstoneRef.current = onTombstone;
+    onEditRef.current = onEdit;
+    onConnectionChangeRef.current = onConnectionChange;
+  }, [
+    onMessage,
+    onWelcome,
+    onCommit,
+    onApplicationMessage,
+    onTombstone,
+    onEdit,
+    onConnectionChange,
+  ]);
 
-        // Route to specific handlers based on event type
-        switch (data.type) {
-          case 'WELCOME':
-            console.log('[WebSocket] Received WELCOME for group:', data.group_id);
-            onMessage?.(data);
-            onWelcome?.(data.group_id, data.payload);
-            break;
-          case 'COMMIT':
-            console.log('[WebSocket] Received COMMIT for group:', data.group_id);
-            onMessage?.(data);
-            onCommit?.(data.group_id, data.payload);
-            break;
-          case 'MSG':
-            console.log('[WebSocket] Received MSG for group:', data.group_id);
-            onMessage?.(data);
-            onApplicationMessage?.(data.group_id, data.payload, data.seq_id);
-            break;
-          case 'TOMBSTONE':
-            console.log('[WebSocket] Received TOMBSTONE for group:', data.group_id);
-            onMessage?.(data);
-            onTombstone?.(data.group_id, data.payload, data.message_id);
-            break;
-          case 'EDIT':
-            console.log('[WebSocket] Received EDIT for group:', data.group_id);
-            onMessage?.(data);
-            onEdit?.(data.group_id, data.payload, data.message_id);
-            break;
-          case 'connection:established':
-            console.log('[WebSocket] Connection established');
-            break;
-          case 'connection:error':
-            console.error('[WebSocket] Connection error event received');
-            break;
-          default: {
-            const exhaustiveCheck: never = data;
-            console.warn('[WebSocket] Unhandled event type:', exhaustiveCheck);
-          }
-        }
-      } catch (error) {
-        console.error('[WebSocket] Failed to parse message:', error);
-      }
-    },
-    [onMessage, onWelcome, onCommit, onApplicationMessage, onTombstone, onEdit],
-  );
-
-  const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      return;
-    }
-
+  const handleMessage = useCallback((event: MessageEvent) => {
     try {
-      const ws = new WebSocket(WEBSOCKET_URL);
+      const rawData = JSON.parse(event.data);
+      console.log('[WebSocket] Received raw message:', rawData);
 
-      ws.onopen = () => {
-        console.log('[WebSocket] Connected');
-        setIsConnected(true);
-        onConnectionChange?.(true);
-        reconnectAttemptsRef.current = 0;
-      };
+      const result = WebSocketMessageSchema.safeParse(rawData);
 
-      ws.onclose = () => {
-        console.log('[WebSocket] Disconnected');
-        setIsConnected(false);
-        onConnectionChange?.(false);
+      if (!result.success) {
+        console.error('[WebSocket] Invalid message format:', z.treeifyError(result.error));
+        console.error('[WebSocket] Raw data that failed validation:', rawData);
+        return;
+      }
 
-        // Attempt to reconnect
-        if (reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
-          reconnectTimeoutRef.current = setTimeout(() => {
-            reconnectAttemptsRef.current += 1;
-            console.log(
-              `[WebSocket] Reconnecting... Attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS}`,
-            );
-            connect();
-          }, RECONNECT_INTERVAL);
+      const { data } = result;
+      console.log('[WebSocket] Parsed and validated message:', data);
+
+      // Route to specific handlers based on event type
+      switch (data.type) {
+        case 'WELCOME':
+          console.log('[WebSocket] Received WELCOME for group:', data.group_id);
+          onMessageRef.current?.(data);
+          onWelcomeRef.current?.(data.group_id, data.payload, {
+            cloudEventType: data.cloud_event_type,
+            actorName: data.actor_name,
+            targetName: data.target_name,
+            targetId: data.target_id,
+          });
+          break;
+        case 'COMMIT':
+          console.log('[WebSocket] Received COMMIT for group:', data.group_id);
+          onMessageRef.current?.(data);
+          onCommitRef.current?.(data.group_id, data.payload, {
+            cloudEventType: data.cloud_event_type,
+            actorName: data.actor_name,
+            targetName: data.target_name,
+            targetId: data.target_id,
+          });
+          break;
+        case 'MSG':
+          console.log('[WebSocket] Received MSG for group:', data.group_id);
+          onMessageRef.current?.(data);
+          onApplicationMessageRef.current?.(
+            data.message_id ?? 'unknown',
+            data.group_id,
+            data.sender_id ?? 'unknown',
+            data.payload,
+            data.timestamp ?? new Date(),
+            data.seq_id,
+          );
+          break;
+        case 'TOMBSTONE':
+          console.log('[WebSocket] Received TOMBSTONE for group:', data.group_id);
+          onMessageRef.current?.(data);
+          onTombstoneRef.current?.(
+            data.group_id,
+            data.payload,
+            data.message_id,
+            data.sender_id ?? undefined,
+          );
+          break;
+        case 'EDIT':
+          console.log('[WebSocket] Received EDIT for group:', data.group_id);
+          onMessageRef.current?.(data);
+          onEditRef.current?.(
+            data.group_id,
+            data.payload,
+            data.message_id,
+            data.sender_id ?? undefined,
+          );
+          break;
+        case 'connection:established':
+          console.log('[WebSocket] Connection established');
+          break;
+        case 'connection:error':
+          console.error('[WebSocket] Connection error event received');
+          break;
+        default: {
+          const exhaustiveCheck: never = data;
+          console.warn('[WebSocket] Unhandled event type:', exhaustiveCheck);
         }
-      };
-
-      ws.onerror = (error) => {
-        console.error('[WebSocket] Error:', error);
-      };
-
-      ws.onmessage = handleMessage;
-
-      wsRef.current = ws;
+      }
     } catch (error) {
-      console.error('[WebSocket] Failed to connect:', error);
-    }
-  }, [handleMessage, onConnectionChange]);
-
-  const disconnect = useCallback(() => {
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
-    }
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
+      console.error('[WebSocket] Failed to parse message:', error);
     }
   }, []);
 
+  // Single stable effect to manage the WebSocket lifecycle
   useEffect(() => {
-    connect();
-    return () => disconnect();
-  }, [connect, disconnect]);
+    if (!accessToken) {
+      console.warn('[WebSocket] No access token available, skipping connection');
+      return;
+    }
 
-  const sendWebSocketMessage = useCallback(
-    (
-      type: WebSocketEventType,
-      groupId: string,
-      payload: string,
-      extras?: { nonce?: string; message_id?: string },
-    ) => {
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
-        const message: WebSocketMessage = {
-          type,
-          group_id: groupId,
-          payload,
-          timestamp: new Date(),
-          ...extras,
-        };
-        wsRef.current.send(JSON.stringify(message));
-      } else {
-        console.warn('[WebSocket] Cannot send message: Not connected');
+    intentionalCloseRef.current = false;
+    reconnectAttemptsRef.current = 0;
+
+    function connect() {
+      if (intentionalCloseRef.current) return;
+
+      const token = accessTokenRef.current;
+      if (!token) return;
+
+      // Close any existing connection first
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.onerror = null;
+        wsRef.current.onopen = null;
+        wsRef.current.onmessage = null;
+        wsRef.current.close();
+        wsRef.current = null;
       }
-    },
-    [],
-  );
 
-  const sendMessage = useCallback(
-    (groupId: string, encryptedPayload: string, nonce?: string) => {
-      sendWebSocketMessage('MSG', groupId, encryptedPayload, nonce ? { nonce } : undefined);
-    },
-    [sendWebSocketMessage],
-  );
+      try {
+        const url = `${WEBSOCKET_URL}?token=${encodeURIComponent(token)}`;
+        const ws = new WebSocket(url);
 
-  const updateMessage = useCallback(
-    (groupId: string, messageId: string, encryptedPayload: string) => {
-      sendWebSocketMessage('EDIT', groupId, encryptedPayload, {
-        message_id: messageId,
-      });
-    },
-    [sendWebSocketMessage],
-  );
+        ws.onopen = () => {
+          console.log('[WebSocket] Connected');
+          setIsConnected(true);
+          onConnectionChangeRef.current?.(true);
+          reconnectAttemptsRef.current = 0;
+        };
 
-  const deleteMessage = useCallback(
-    (groupId: string, messageId: string) => {
-      // For delete, payload might be an encrypted reference or just empty
-      sendWebSocketMessage('TOMBSTONE', groupId, '', { message_id: messageId });
-    },
-    [sendWebSocketMessage],
-  );
+        ws.onclose = () => {
+          if (intentionalCloseRef.current) return;
+          console.log('[WebSocket] Disconnected');
+          setIsConnected(false);
+          onConnectionChangeRef.current?.(false);
+
+          // Attempt to reconnect
+          if (reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
+            reconnectTimeoutRef.current = setTimeout(() => {
+              reconnectAttemptsRef.current += 1;
+              console.log(
+                `[WebSocket] Reconnecting... Attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS}`,
+              );
+              connect();
+            }, RECONNECT_INTERVAL);
+          }
+        };
+
+        ws.onerror = () => {
+          // Suppress errors from intentional teardowns (e.g. React Strict Mode)
+          if (intentionalCloseRef.current) return;
+          console.error('[WebSocket] Connection error');
+        };
+
+        ws.onmessage = handleMessage;
+
+        wsRef.current = ws;
+      } catch (error) {
+        console.error('[WebSocket] Failed to connect:', error);
+      }
+    }
+
+    connect();
+
+    return () => {
+      intentionalCloseRef.current = true;
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+      if (wsRef.current) {
+        wsRef.current.onopen = null;
+        wsRef.current.onclose = null;
+        wsRef.current.onerror = null;
+        wsRef.current.onmessage = null;
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      setIsConnected(false);
+    };
+  }, [accessToken, handleMessage]);
 
   return {
     isConnected,
-    sendMessage,
-    updateMessage,
-    deleteMessage,
   };
 }

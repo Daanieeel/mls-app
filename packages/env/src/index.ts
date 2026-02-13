@@ -23,17 +23,25 @@ function loadEnvFromRoot() {
       const envContent = readFileSync(envPath, 'utf-8');
       const lines = envContent.split('\n');
 
+      // First pass: collect raw key=value pairs
+      const rawEntries: [string, string][] = [];
       for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed || trimmed.startsWith('#')) continue;
 
         const [key, ...valueParts] = trimmed.split('=');
         if (key && valueParts.length > 0) {
-          const value = valueParts.join('=').trim();
-          // Only set if not already set
-          if (!process.env[key]) {
-            process.env[key] = value;
-          }
+          rawEntries.push([key, valueParts.join('=').trim()]);
+        }
+      }
+
+      // Second pass: set values with ${VAR} interpolation
+      for (const [key, rawValue] of rawEntries) {
+        if (!process.env[key]) {
+          const value = rawValue.replace(/\$\{([^}]+)\}/g, (_, varName) => {
+            return process.env[varName] ?? '';
+          });
+          process.env[key] = value;
         }
       }
       break;

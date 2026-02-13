@@ -57,5 +57,6 @@
   "[markdown]": {
     "editor.defaultFormatter": "DavidAnson.vscode-markdownlint",
     "editor.minimap.enabled": false
-  }
+  },
+  "prisma.pinToPrisma6": true
 }

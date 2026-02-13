@@ -10,15 +10,18 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@t3-oss/env-core": "^0.13.10",
-    "elysia": "1.1.17",
-    "zod": "^4.3.6",
     "@repo/database": "*",
-    "@repo/env": "*"
+    "@repo/env": "*",
+    "@repo/utils": "*",
+    "@t3-oss/env-core": "^0.13.10",
+    "cloudevents": "^10.0.0",
+    "node-rdkafka": "^3.6.1",
+    "redis": "^5.10.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@repo/typescript-config": "*",
     "@types/bun": "1.1.10",
-    "@types/node": "22.7.4",
-    "@repo/typescript-config": "*"
+    "@types/node": "22.7.4"
   }
 }
