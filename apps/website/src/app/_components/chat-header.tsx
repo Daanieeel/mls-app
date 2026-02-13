@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { Settings, Users } from 'lucide-react';
 import { useState } from 'react';

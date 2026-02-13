@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { LogOut, Menu, Plus, X } from 'lucide-react';
 import { useState } from 'react';
@@ -96,7 +96,7 @@ export function ChatSidebar({
           </div>
         </div>
 
-        <Separator />
+				<Separator />
 
         {/* Chat list */}
         <ScrollArea className="flex-1">
