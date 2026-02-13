@@ -167,7 +167,7 @@ async function run() {
           receiverId: recipientId,
           groupId: groupId ?? '', // Store group ID directly for sync
           senderId: cloudEvent.data.senderId || undefined, // Store sender ID for sync
-          seq_id: 123,
+          seq_id: 123, //TODO: implement proper seq_id generation (when it can be used for ordering in the UI)
         };
 
         preparedInboxItems.push(temp);
