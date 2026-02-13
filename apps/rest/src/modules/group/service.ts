@@ -8,25 +8,37 @@ export abstract class GroupService {
     body,
     executorId,
   }: { body: (typeof GroupModel.CreateGroupBody)['static']; executorId: string }) {
+    // Include the creator as a member as well
+    const allMemberIds = [...new Set([executorId, ...body.options.memberIds])];
+
     const createdGroup = await prisma.group.create({
       data: {
-        ...body.options,
+        name: body.options.name,
         createdBy: {
           connect: {
             id: executorId,
           },
         },
         members: {
-          create: body.options.memberIds.map((item) => ({
+          create: allMemberIds.map((id) => ({
             user: {
-              connect: {
-                id: item,
-              },
+              connect: { id },
             },
           })),
         },
       },
+      include: {
+        members: {
+          include: {
+            user: {
+              select: { id: true, email: true, name: true },
+            },
+          },
+        },
+      },
     });
+
+    const creator = createdGroup.members.find((m) => m.userId === executorId)?.user;
 
     const groupEvent: MinimalCloudEvent = new CloudEvent({
       specversion: '1.0',
@@ -39,22 +51,26 @@ export abstract class GroupService {
         payload: body.welcomeMessage.payload,
         type: body.welcomeMessage.type,
         nonce: body.welcomeMessage.nonce,
+        senderId: executorId,
+        actorName: creator?.name ?? creator?.email ?? executorId,
       },
     });
 
-    return groupEvent;
+    return { group: createdGroup, event: groupEvent };
   }
 
-  static addUserToGroup({
+  static async addUserToGroup({
     body,
     params,
+    executorId,
   }: {
     body: (typeof GroupModel.AddUserBody)['static'];
     params: (typeof GroupModel.AddUserParams)['static'];
+    executorId: string;
   }) {
-    return prisma.group.update({
+    const updatedGroup = await prisma.group.update({
       where: {
-        id: params.groupId,
+        id: params.id,
       },
       data: {
         members: {
@@ -63,31 +79,102 @@ export abstract class GroupService {
           },
         },
       },
+      include: {
+        members: {
+          include: {
+            user: {
+              select: { id: true, email: true, name: true },
+            },
+          },
+        },
+      },
     });
+
+    const executor = updatedGroup.members.find((m) => m.userId === executorId)?.user;
+    const target = updatedGroup.members.find((m) => m.userId === body.targetId)?.user;
+
+    const groupEvent: MinimalCloudEvent = new CloudEvent({
+      specversion: '1.0',
+      type: CLOUD_EVENT_TYPES.GROUP_USER_ADDED,
+      source: '/groups/',
+      time: new Date().toISOString(),
+      datacontenttype: 'application/json',
+      subject: params.id,
+      data: {
+        payload: body.commitMessage.payload,
+        type: body.commitMessage.type,
+        nonce: body.commitMessage.nonce,
+        senderId: executorId,
+        actorName: executor?.name ?? executor?.email ?? executorId,
+        targetName: target?.name ?? target?.email ?? body.targetId,
+        targetId: body.targetId,
+      },
+    });
+
+    return { group: updatedGroup, event: groupEvent };
   }
 
-  static removeUserFromGroup({
+  static async removeUserFromGroup({
     body,
     params,
+    executorId,
   }: {
     body: (typeof GroupModel.RemoveUserBody)['static'];
     params: (typeof GroupModel.RemoveUserParams)['static'];
+    executorId: string;
   }) {
-    return prisma.group.update({
+    // Fetch target user name before removal
+    const targetUser = await prisma.user.findUnique({
+      where: { id: body.targetId },
+      select: { id: true, email: true, name: true },
+    });
+
+    const updatedGroup = await prisma.group.update({
       where: {
-        id: params.groupId,
+        id: params.id,
       },
       data: {
         members: {
           delete: {
             userId_groupId: {
               userId: body.targetId,
-              groupId: params.groupId,
+              groupId: params.id,
+            },
+          },
+        },
+      },
+      include: {
+        members: {
+          include: {
+            user: {
+              select: { id: true, email: true, name: true },
             },
           },
         },
       },
     });
+
+    const executor = updatedGroup.members.find((m) => m.userId === executorId)?.user;
+
+    const groupEvent: MinimalCloudEvent = new CloudEvent({
+      specversion: '1.0',
+      type: CLOUD_EVENT_TYPES.GROUP_USER_REMOVED,
+      source: '/groups/',
+      time: new Date().toISOString(),
+      datacontenttype: 'application/json',
+      subject: params.id,
+      data: {
+        payload: body.commitMessage.payload,
+        type: body.commitMessage.type,
+        nonce: body.commitMessage.nonce,
+        senderId: executorId,
+        actorName: executor?.name ?? executor?.email ?? executorId,
+        targetName: targetUser?.name ?? targetUser?.email ?? body.targetId,
+        targetId: body.targetId,
+      },
+    });
+
+    return { group: updatedGroup, event: groupEvent };
   }
 
   static async leaveGroup({
@@ -99,16 +186,77 @@ export abstract class GroupService {
     params: (typeof GroupModel.LeaveGroupParams)['static'];
     body: (typeof GroupModel.LeaveGroupBody)['static'];
   }) {
+    // Fetch executor name and current member count before removal
+    const [executorUser, group] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: executorId },
+        select: { id: true, email: true, name: true },
+      }),
+      prisma.group.findUnique({
+        where: { id: params.id },
+        select: { _count: { select: { members: true } } },
+      }),
+    ]);
+
+    const isLastMember = group?._count.members === 1;
+
+    if (isLastMember) {
+      // Delete the entire group if this is the last member
+      // Use transaction to remove member, related messages, inbox items, then delete the group
+      await prisma.$transaction([
+        // Delete inbox items that reference messages in this group
+        prisma.userInboxItem.deleteMany({
+          where: { groupId: params.id },
+        }),
+        // Delete global messages in this group
+        prisma.globalMessage.deleteMany({
+          where: { groupId: params.id },
+        }),
+        // Remove the last member
+        prisma.groupMember.delete({
+          where: {
+            userId_groupId: {
+              userId: executorId,
+              groupId: params.id,
+            },
+          },
+        }),
+        // Delete the group itself
+        prisma.group.delete({
+          where: { id: params.id },
+        }),
+      ]);
+
+      const groupEvent: MinimalCloudEvent = new CloudEvent({
+        specversion: '1.0',
+        type: CLOUD_EVENT_TYPES.GROUP_LEFT,
+        source: '/groups/',
+        time: new Date().toISOString(),
+        datacontenttype: 'application/json',
+        subject: params.id,
+        data: {
+          nonce: body.nonce,
+          type: body.type,
+          payload: body.payload,
+          senderId: executorId,
+          actorName: executorUser?.name ?? executorUser?.email ?? executorId,
+          groupDeleted: true,
+        },
+      });
+      return groupEvent;
+    }
+
+    // Otherwise, just remove the user from the group
     const updatedGroup = await prisma.group.update({
       where: {
-        id: params.groupId,
+        id: params.id,
       },
       data: {
         members: {
           delete: {
             userId_groupId: {
               userId: executorId,
-              groupId: params.groupId,
+              groupId: params.id,
             },
           },
         },
@@ -116,7 +264,7 @@ export abstract class GroupService {
     });
     const groupEvent: MinimalCloudEvent = new CloudEvent({
       specversion: '1.0',
-      type: CLOUD_EVENT_TYPES.GROUP_LEAVED,
+      type: CLOUD_EVENT_TYPES.GROUP_LEFT,
       source: '/groups/',
       time: new Date().toISOString(),
       datacontenttype: 'application/json',
@@ -124,7 +272,10 @@ export abstract class GroupService {
       data: {
         nonce: body.nonce,
         type: body.type,
-        payload: body.payload.toString(),
+        payload: body.payload,
+        senderId: executorId,
+        actorName: executorUser?.name ?? executorUser?.email ?? executorId,
+        groupDeleted: false,
       },
     });
     return groupEvent;
@@ -139,16 +290,38 @@ export abstract class GroupService {
           },
         },
       },
+      include: {
+        members: {
+          include: {
+            user: {
+              select: { id: true, email: true, name: true },
+            },
+          },
+        },
+        _count: {
+          select: { members: true },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
     });
   }
 
   static getGroupById({ executorId, groupId }: { executorId: string; groupId: string }) {
     return prisma.group.findFirst({
       where: {
+        id: groupId,
         members: {
           some: {
             userId: executorId,
-            groupId: groupId,
+          },
+        },
+      },
+      include: {
+        members: {
+          include: {
+            user: {
+              select: { id: true, email: true, name: true },
+            },
           },
         },
       },
@@ -161,6 +334,15 @@ export abstract class GroupService {
         members: {
           some: {
             userId: executorId,
+          },
+        },
+      },
+      include: {
+        members: {
+          include: {
+            user: {
+              select: { id: true, email: true, name: true },
+            },
           },
         },
       },

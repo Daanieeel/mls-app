@@ -1,15 +1,18 @@
 import { env } from '@repo/env';
 import { Elysia } from 'elysia';
-import { createClient } from 'redis';
+import { createClient, type RedisClientType } from 'redis';
 
-const subscriber = createClient({
-  url: env.REDIS_URL,
-});
-
-export const redisPlugin = async () => {
+/**
+ * Creates a new connected Redis subscriber client.
+ * Each WebSocket connection should use its own subscriber
+ * since a Redis client in subscriber mode can only do SUBSCRIBE/UNSUBSCRIBE.
+ */
+export async function createSubscriber(): Promise<RedisClientType> {
+  const subscriber = createClient({ url: env.REDIS_URL }) as RedisClientType;
   await subscriber.connect();
+  return subscriber;
+}
 
-  return new Elysia({ name: 'subscriber' }).decorate('subscriber', subscriber).onStop(async () => {
-    await subscriber.destroy();
-  });
+export const redisPlugin = () => {
+  return new Elysia({ name: 'redis-plugin' });
 };

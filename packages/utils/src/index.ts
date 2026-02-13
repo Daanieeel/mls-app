@@ -7,6 +7,8 @@ export const CLOUD_EVENT_TYPES = {
   MESSAGE_NOTIFICATION_PUBLISHED: 'de.messenger.message.notification.published',
   GROUP_LEFT: 'de.messenger.group.left',
   GROUP_CREATED: 'de.messenger.group.created',
+  GROUP_USER_ADDED: 'de.messenger.group.user.added',
+  GROUP_USER_REMOVED: 'de.messenger.group.user.removed',
 } as const;
 
 export const KAFKA_TOPIC_TYPES = {
@@ -20,6 +22,10 @@ export type MinimalCloudEventData = {
   type: string;
   payload: string;
   nonce: string;
+  senderId?: string;
+  actorName?: string;
+  targetName?: string;
+  targetId?: string;
 };
 
 export type MinimalCloudEvent = CloudEvent<MinimalCloudEventData>;

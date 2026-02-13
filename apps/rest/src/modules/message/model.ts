@@ -8,25 +8,15 @@ export namespace MessageModel {
     groupId: t.String(),
   });
   export const UpdateMessageBody = t.Object({
-    nonce: t.String(),
     payload: t.String(),
+    nonce: t.String(),
     type: t.String(),
-    updatedMessage: t.Object({
-      payload: t.String(),
-      nonce: t.String(),
-      type: t.String(),
-    }),
+    groupId: t.String(),
   });
   export const DeleteMessageParams = t.Object({
     id: t.String(),
   });
   export const UpdateMessageParams = t.Object({
     id: t.String(),
-  });
-  export const DeleteMessageBody = t.Object({
-    payload: t.String(),
-    nonce: t.String(),
-    type: t.String(),
-    groupId: t.String(),
   });
 }

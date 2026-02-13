@@ -11,9 +11,26 @@ export abstract class MessageService {
     body: (typeof MessageModel.CreateMessageBody)['static'];
     userId: string;
   }) {
+    const { groupId, payload, ...rest } = body;
+
+    console.log('[REST:MessageService] createMessage called', {
+      groupId,
+      payloadLength: payload.length,
+      payloadPreview: payload.substring(0, 80),
+      type: rest.type,
+    });
+
+    // The payload arrives as a base64 string from the client.
+    // Store the raw bytes in Prisma's Bytes field.
+    const payloadBuffer = Buffer.from(payload, 'utf-8');
+    console.log('[REST:MessageService] Storing payload buffer', {
+      bufferLength: payloadBuffer.length,
+      bufferPreview: payloadBuffer.toString('utf-8').substring(0, 80),
+    });
+
     const createdMessage = await prisma.globalMessage.create({
       data: {
-        ...body,
+        ...rest,
         sender: {
           connect: {
             id: userId,
@@ -21,13 +38,22 @@ export abstract class MessageService {
         },
         group: {
           connect: {
-            id: body.groupId,
+            id: groupId,
           },
         },
-        groupId: undefined,
-        payload: Buffer.from(body.payload),
+        payload: payloadBuffer,
       },
     });
+
+    // Reconstruct the original payload string from Prisma's Bytes.
+    // Buffer.from() ensures we have a real Node/Bun Buffer (not a plain Uint8Array)
+    // so that .toString('utf-8') returns the original string, not comma-separated bytes.
+    const payloadString = Buffer.from(createdMessage.payload).toString('utf-8');
+    console.log('[REST:MessageService] CloudEvent payload reconstructed', {
+      payloadString: payloadString.substring(0, 80),
+      matchesInput: payloadString === payload,
+    });
+
     const messageEvent: MinimalCloudEvent = new CloudEvent({
       specversion: '1.0',
       type: CLOUD_EVENT_TYPES.MESSAGE_SENT,
@@ -37,7 +63,7 @@ export abstract class MessageService {
       subject: body.groupId,
       data: {
         ...createdMessage,
-        payload: createdMessage.payload.toString(),
+        payload: payloadString,
       },
     });
     return messageEvent;
@@ -52,20 +78,40 @@ export abstract class MessageService {
     params: (typeof MessageModel.UpdateMessageParams)['static'];
     userId: string;
   }) {
+    console.log('[REST:MessageService] updateMessage called', {
+      messageId: params.id,
+      payloadLength: body.payload.length,
+      payloadPreview: body.payload.substring(0, 80),
+    });
+
+    // Verify ownership: only the original sender can edit a message
+    const existing = await prisma.globalMessage.findUnique({
+      where: { id: params.id },
+      select: { senderId: true },
+    });
+    if (!existing) {
+      throw new Error('Message not found');
+    }
+    if (existing.senderId !== userId) {
+      throw new Error('You can only edit your own messages');
+    }
+
     const updatedMessage = await prisma.globalMessage.update({
       where: {
         id: params.id,
       },
       data: {
-        ...body,
-        sender: {
-          connect: {
-            id: userId,
-          },
-        },
-        payload: Buffer.from(body.payload),
+        payload: Buffer.from(body.payload, 'utf-8'),
+        nonce: body.nonce,
+        type: body.type,
       },
     });
+
+    const payloadString = Buffer.from(updatedMessage.payload).toString('utf-8');
+    console.log('[REST:MessageService] updateMessage payload reconstructed', {
+      payloadString: payloadString.substring(0, 80),
+    });
+
     const messageEvent = new CloudEvent({
       specversion: '1.0',
       type: CLOUD_EVENT_TYPES.MESSAGE_UPDATED,
@@ -75,7 +121,7 @@ export abstract class MessageService {
       subject: updatedMessage.groupId,
       data: {
         ...updatedMessage,
-        payload: updatedMessage.payload.toString(),
+        payload: payloadString,
       },
     });
     return messageEvent;
@@ -83,14 +129,34 @@ export abstract class MessageService {
 
   static async deleteMessage({
     params,
+    userId,
   }: {
     params: (typeof MessageModel.DeleteMessageParams)['static'];
+    userId: string;
   }) {
+    // Verify ownership: only the original sender can delete a message
+    const existing = await prisma.globalMessage.findUnique({
+      where: { id: params.id },
+      select: { senderId: true },
+    });
+    if (!existing) {
+      throw new Error('Message not found');
+    }
+    if (existing.senderId !== userId) {
+      throw new Error('You can only delete your own messages');
+    }
+
     const deletedMessage = await prisma.globalMessage.delete({
       where: {
-        ...params,
+        id: params.id,
       },
     });
+    const payloadString = Buffer.from(deletedMessage.payload).toString('utf-8');
+    console.log('[REST:MessageService] deleteMessage payload reconstructed', {
+      messageId: params.id,
+      payloadPreview: payloadString.substring(0, 80),
+    });
+
     const messageEvent: MinimalCloudEvent = new CloudEvent({
       specversion: '1.0',
       type: CLOUD_EVENT_TYPES.MESSAGE_DELETED,
@@ -100,7 +166,7 @@ export abstract class MessageService {
       subject: deletedMessage.groupId,
       data: {
         ...deletedMessage,
-        payload: deletedMessage.payload.toString(),
+        payload: payloadString,
       },
     });
     return messageEvent;

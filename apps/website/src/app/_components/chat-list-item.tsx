@@ -41,7 +41,7 @@ export function ChatListItem({ group, isSelected, onClick }: ChatListItemProps) 
     <button
       className={cn(
         'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors',
-        'hover:bg-sidebar-accent focus-visible:bg-sidebar-accent focus-visible:outline-none',
+        'cursor-pointer hover:bg-sidebar-accent focus-visible:bg-sidebar-accent focus-visible:outline-none',
         isSelected && 'bg-sidebar-accent',
       )}
       onClick={onClick}
